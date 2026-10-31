@@ -57,7 +57,9 @@ One brand, two visual states. The target palette is the next UI pass. The spruce
 
 **Target.** Ivory canvas `#FCFBF7`, white surfaces `#FFFFFF`, deep navy text `#142B4A`, azure primary `#1769AA`, teal accent `#087F78`, amber attention `#D99226`. Neutral borders are fine. The canvas stays light. Avoid a gray or black dominant admin theme, oversized gradients, and decorative charts.
 
-**Current Heddle portals.** Warm ivory canvas (`#fff6ee` on the desk, `#fff3ea` on the shop), spruce text `#1a3c34`, and a deep spruce desk sidebar (`#18483d` to `#0f312b`). Actions and the active nav item use a coral-to-rose gradient (`#f07832` to `#e4547c`). Display type is Fraunces; UI type is Outfit. The shop is a light storefront with a narrow rail, not a copy of the desk sidebar.
+**Current desk.** Warm ivory canvas `#fff6ee`, spruce text `#1a3c34`, and a deep spruce sidebar (`#18483d` to `#0f312b`). Actions and the active nav item use a coral-to-rose gradient (`#f07832` to `#e4547c`). Display type is Fraunces; UI type is Outfit.
+
+**Current shop.** Light field `#f3f6f4`, white surfaces, ink `#14263a`, and teal actions `#0c7c74`. Type is Manrope. The header links to offers and orders. Offer cards use a soft color band, the included product names, and one price. Sign-in is a split screen, teal on the left and a white form on the right.
 
 Shared craft for both portals: clear page hierarchy, readable tables, responsive navigation, visible focus, semantic labels, and feedback for loading, empty, error, success, and destructive confirmation. Connected screens show data from the APIs. Sample catalog rows are seed data, not live sales.
 

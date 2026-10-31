@@ -27,16 +27,18 @@ This file is the working procedure for agents in this repository. Product behavi
 
 These are absent from the tree. Treat them as targets in DESIGN.md and ARCHITECTURE.md, and do not describe them as implemented: an API gateway, a root `.env.example`, server-side list filters, soft-delete, idempotent checkout, and a payment simulation. CloudWatch, X-Ray, and Azure Monitor exporters are also absent. Local metrics, logs, and traces are selected with `observability.*.exporter`.
 
-## Non-negotiable principles
+## Operating principles
 
-1. **Working software over demonstrations.** Implement runnable integrations, not pseudocode, fake dashboards, or hardcoded AI answers.
-2. **Evidence before conclusions.** Never state a root cause without citing actual log entries, trace IDs, metric observations, deployment diffs, or other retrievable evidence.
-3. **Never fabricate results.** Do not invent benchmark scores, AWS observations, successful tests, model capabilities, API names, or MTTR improvements.
-4. **Model-agnostic architecture.** Do not hardwire the system to a named model or assume it is available via API. Discover and document supported model IDs and access before use.
-5. **Least privilege and human control.** Default AI investigation tools to read-only. No automated rollback, database mutation, cluster changes, or infrastructure deletion without explicit approval and a separately reviewed execution path.
-6. **Repeatable experiments.** Every fault must have a known ground truth, injection method, cleanup method, and measurable validation criteria.
-7. **Keep it understandable.** Prefer direct explanations and practical architecture decisions over buzzwords, promotional language, and unnecessary abstractions.
-8. **Do not overengineer.** Start with the smallest complete vertical slice; add agents and services only when they add testable value.
+These are the rules for a commerce business that sells through Heddle. Catalog, offers, customers, orders, and inventory are the systems of record. An investigation assists the people who own those systems. It does not operate them.
+
+1. **Protect the order.** A change is judged by what it does to a purchase: whether the customer can buy, whether the price and stock are right, and whether the order record can be audited afterward.
+2. **Report only what was retrieved.** An incident update names the service, the time window, and the log line, trace, metric, or configuration diff that supports it. If that evidence is missing, the finding stays incomplete.
+3. **Do not invent an outcome.** Latency, cost, a model result, a test, and a recovery time are written down only after the command or query that produced them. A number without that source is not a status.
+4. **Keep investigation read-only.** The assistant may recommend a rollback, a configuration change, or a data fix. A person in the owning role approves it. The investigation workflow does not get a shell, a database write, or a way to delete infrastructure.
+5. **Keep customer data in the owning service.** Passwords, tokens, and personal payloads stay out of model prompts, copied logs, and documents. Each service reads only the records it owns.
+6. **Treat the model as a configured dependency.** Call the model the environment is permitted to call. Record the model id that answered. Do not assume a vendor or a model is available.
+7. **Practice faults in non-production, then put the business path back.** A practice fault has an owner, a way to introduce it, a way to remove it, and a check that purchase works again. The investigator does not receive the answer in the prompt.
+8. **Extend the purchase path before adding platforms.** A new service, screen, or agent has to change how an order is taken, how a failure shows up, or how an on-call engineer investigates it. Someone must be able to run that change.
 
 ## Target platform
 

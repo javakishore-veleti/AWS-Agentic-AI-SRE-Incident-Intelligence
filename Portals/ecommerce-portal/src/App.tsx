@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react"
 import { Link, NavLink, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { loadActiveOffers, loadMyOrders, loadOffer, purchase, readSession, signin, signup, writeSession } from "./api"
 import type { Offer, Session, ShopOrder } from "./types"
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" })
+const washes = ["wash-sea", "wash-sky", "wash-sand", "wash-leaf"]
 
 function useSession() {
   const [session, setSession] = useState<Session | null>(() => readSession())
@@ -19,35 +20,36 @@ function useSession() {
   return session
 }
 
-function Icon({ d }: { d: string }) {
+function Shell(props: { children: ReactNode; wide?: boolean }) {
+  const session = useSession()
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d={d} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function Rail() {
-  return (
-    <aside className="rail">
-      <Link className="mark" to="/offers" aria-label="Heddle home">H</Link>
-      <NavLink className={({ isActive }) => `item${isActive ? " active" : ""}`} to="/offers" aria-label="Offers">
-        <Icon d="M4 7h16M4 12h16M4 17h10" />
-      </NavLink>
-      <NavLink className={({ isActive }) => `item${isActive ? " active" : ""}`} to="/orders" aria-label="Your orders">
-        <Icon d="M6 6h15l-1.5 9h-12zM6 6 5 3H2" />
-      </NavLink>
-      <NavLink className={({ isActive }) => `item${isActive ? " active" : ""}`} to="/signin" aria-label="Account">
-        <Icon d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4M5 20a7 7 0 0 1 14 0" />
-      </NavLink>
-    </aside>
+    <div className="store">
+      <header className="top">
+        <Link className="logo" to="/offers">Heddle</Link>
+        <nav className="nav">
+          <NavLink to="/offers">Offers</NavLink>
+          <NavLink to="/orders">Orders</NavLink>
+        </nav>
+        <div className="account">
+          {session ? (
+            <>
+              <span>{session.customer.fullName}</span>
+              <button type="button" onClick={() => writeSession(null)}>Sign out</button>
+            </>
+          ) : (
+            <Link className="signin" to="/signin">Sign in</Link>
+          )}
+        </div>
+      </header>
+      <main className={props.wide ? "page wide" : "page"}>{props.children}</main>
+    </div>
   )
 }
 
 function Pager(props: { page: number; pages: number; from: number; to: number; total: number; onPage: (page: number) => void }) {
   return (
     <div className="pager">
-      <span>{props.total === 0 ? "No sets in this view" : `${props.from}–${props.to} of ${props.total}`}</span>
+      <span>{props.total === 0 ? "Nothing in this view" : `${props.from}–${props.to} of ${props.total}`}</span>
       <div>
         <button type="button" disabled={props.page <= 1} onClick={() => props.onPage(props.page - 1)}>Previous</button>
         <button type="button" disabled={props.page >= props.pages} onClick={() => props.onPage(props.page + 1)}>Next</button>
@@ -57,7 +59,6 @@ function Pager(props: { page: number; pages: number; from: number; to: number; t
 }
 
 function OffersPage() {
-  const session = useSession()
   const [rows, setRows] = useState<Offer[]>([])
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
@@ -67,9 +68,7 @@ function OffersPage() {
   useEffect(() => {
     loadActiveOffers()
       .then(setRows)
-      .catch((reason: unknown) => {
-        setError(reason instanceof Error ? reason.message : "Offers are unavailable.")
-      })
+      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Offers are unavailable."))
       .finally(() => setReady(true))
   }, [])
 
@@ -89,44 +88,41 @@ function OffersPage() {
   const view = filtered.slice(start, start + pageSize)
 
   return (
-    <div className="stage">
-      <div className="shop">
-        <Rail />
-        <aside className="filters">
-          <h2>Heddle</h2>
-          <p className="quiet">House sets, with the goods inside each one.</p>
-          <label className="field">Offer<input value={criteria.offer} onChange={(event) => setCriteria({ ...criteria, offer: event.target.value })} /></label>
-          <label className="field">Included product<input value={criteria.product} onChange={(event) => setCriteria({ ...criteria, product: event.target.value })} /></label>
-          <label className="field">Highest price<input type="number" min="0" value={criteria.max} onChange={(event) => setCriteria({ ...criteria, max: event.target.value })} /></label>
-          <button className="clear" type="button" onClick={() => setCriteria({ offer: "", product: "", max: "" })}>Clear criteria</button>
-        </aside>
-        <main className="main">
-          <div className="main-head">
-            <div>
-              <p className="quiet">Showing the latest open sets</p>
-              <h1>Sets</h1>
+    <Shell wide>
+      <section className="intro">
+        <p className="eyebrow">Ready to purchase</p>
+        <h1>Offers, with every product inside.</h1>
+        <p className="sub">Browse the latest open offers. Each one is a set of catalog products at one price.</p>
+      </section>
+      <form className="filters" onSubmit={(event) => event.preventDefault()}>
+        <label>Offer name<input value={criteria.offer} onChange={(event) => setCriteria({ ...criteria, offer: event.target.value })} placeholder="Sunday Hosting" /></label>
+        <label>Included product<input value={criteria.product} onChange={(event) => setCriteria({ ...criteria, product: event.target.value })} placeholder="Oak" /></label>
+        <label>Highest price<input type="number" min="0" value={criteria.max} onChange={(event) => setCriteria({ ...criteria, max: event.target.value })} placeholder="150" /></label>
+        <button type="button" className="text" onClick={() => setCriteria({ offer: "", product: "", max: "" })}>Clear</button>
+      </form>
+      {error ? <p className="warn">{error}</p> : null}
+      <div className="grid">
+        {view.map((offer, index) => (
+          <article className="card" key={offer.id}>
+            <div className={`band ${washes[index % washes.length]}`}>
+              <span>{offer.products.length} {offer.products.length === 1 ? "product" : "products"}</span>
+              <strong>{money.format(offer.offerPrice)}</strong>
             </div>
-            <div className="who">
-              {session ? <><strong>{session.customer.fullName}</strong><button className="ghost" type="button" onClick={() => writeSession(null)}>Sign out</button></> : <Link to="/signin">Sign in</Link>}
+            <div className="card-body">
+              <h2>{offer.name}</h2>
+              <p>{offer.description}</p>
+              <ul>
+                {offer.products.map((product) => <li key={product.id}>{product.name}</li>)}
+              </ul>
+              <Link to={`/offers/${offer.id}`}>View offer</Link>
             </div>
-          </div>
-          {error ? <p className="warn">{error}</p> : null}
-          <div className="grid">
-            {view.map((offer) => (
-              <article className="offer" key={offer.id}>
-                <div className="kicker">Set</div>
-                <h3>{offer.name}</h3>
-                <div className="price">{money.format(offer.offerPrice)}</div>
-                <div className="chips">{offer.products.map((product) => <span className="chip" key={product.id}>{product.name}</span>)}</div>
-                <Link className="view" to={`/offers/${offer.id}`}>View set</Link>
-              </article>
-            ))}
-          </div>
-          {ready && !error && filtered.length === 0 ? <p className="quiet">No sets match these criteria.</p> : null}
-          <Pager page={current} pages={pages} from={filtered.length ? start + 1 : 0} to={Math.min(start + pageSize, filtered.length)} total={filtered.length} onPage={setPage} />
-        </main>
+          </article>
+        ))}
       </div>
-    </div>
+      {!ready && !error ? <p className="empty">Loading offers…</p> : null}
+      {ready && !error && filtered.length === 0 ? <p className="empty">No offers match these criteria.</p> : null}
+      {ready ? <Pager page={current} pages={pages} from={filtered.length ? start + 1 : 0} to={Math.min(start + pageSize, filtered.length)} total={filtered.length} onPage={setPage} /> : null}
+    </Shell>
   )
 }
 
@@ -141,7 +137,7 @@ function OfferDetailPage() {
 
   useEffect(() => {
     if (!id) return
-    loadOffer(id).then(setOffer).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "This set is unavailable."))
+    loadOffer(id).then(setOffer).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "This offer is unavailable."))
   }, [id])
 
   async function buy() {
@@ -165,37 +161,39 @@ function OfferDetailPage() {
   const listTotal = offer?.products.reduce((sum, product) => sum + Number(product.unitPrice), 0) ?? 0
 
   return (
-    <div className="stage">
-      <div className="shop plain">
-        <Rail />
-        <main className="main">
-          <Link className="quiet" to="/offers">Back to sets</Link>
-          {!offer ? <p className="quiet">Loading this set…</p> : (
-            <div className="detail">
-              <section>
-                <p className="kicker" style={{ color: "#e4547c", fontWeight: 750 }}>Set</p>
-                <h1>{offer.name}</h1>
-                <p className="quiet" style={{ margin: "8px 0 16px" }}>{offer.description}</p>
-                {offer.products.map((product) => (
-                  <div className="product-row" key={product.id}>
-                    <div><strong>{product.name}</strong><div className="quiet">{product.category}</div></div>
-                    <div>{money.format(product.unitPrice)}</div>
+    <Shell>
+      <Link className="back" to="/offers">All offers</Link>
+      {!offer ? <p className="empty">{error ?? "Loading this offer…"}</p> : (
+        <div className="detail">
+          <section>
+            <p className="eyebrow">{offer.code}</p>
+            <h1>{offer.name}</h1>
+            <p className="sub">{offer.description}</p>
+            <ul className="lines">
+              {offer.products.map((product) => (
+                <li key={product.id}>
+                  <div>
+                    <strong>{product.name}</strong>
+                    <span>{product.category}</span>
                   </div>
-                ))}
-              </section>
-              <aside className="panel">
-                <p className="quiet">Goods together</p>
-                <p>{money.format(listTotal)}</p>
-                <h2 style={{ margin: "10px 0" }}>{money.format(offer.offerPrice)}</h2>
-                <button className="primary" type="button" disabled={busy || offer.status !== "ACTIVE"} onClick={() => void buy()}>Purchase set</button>
-                {receipt ? <p className="receipt" style={{ marginTop: 12 }}>{receipt}</p> : null}
-                {error ? <p className="warn" style={{ marginTop: 12 }}>{error}</p> : null}
-              </aside>
-            </div>
-          )}
-        </main>
-      </div>
-    </div>
+                  <b>{money.format(product.unitPrice)}</b>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <aside className="buy">
+            <p>Products together</p>
+            <span className="compare">{money.format(listTotal)}</span>
+            <h2>{money.format(offer.offerPrice)}</h2>
+            <button type="button" disabled={busy || offer.status !== "ACTIVE"} onClick={() => void buy()}>
+              {busy ? "Placing order…" : "Purchase offer"}
+            </button>
+            {receipt ? <p className="receipt">{receipt} <Link to="/orders">See your orders</Link></p> : null}
+            {error ? <p className="warn">{error}</p> : null}
+          </aside>
+        </div>
+      )}
+    </Shell>
   )
 }
 
@@ -220,29 +218,32 @@ function OrdersPage() {
   const view = rows.slice(start, start + pageSize)
 
   return (
-    <div className="stage">
-      <div className="shop plain">
-        <Rail />
-        <main className="main">
-          <h1>Your orders</h1>
-          <p className="quiet">Latest orders on this account.</p>
-          {error ? <p className="warn">{error}</p> : null}
-          <div className="grid" style={{ marginTop: 16 }}>
-            {view.map((order) => (
-              <article className="offer" key={order.id}>
-                <div className="kicker">{order.orderNumber}</div>
-                <h3>{order.offerName}</h3>
-                <div className="price">{money.format(order.totalAmount)}</div>
-                <div className="chips">{order.lines.map((line) => <span className="chip" key={line.sku}>{line.productName}</span>)}</div>
-                <p className="quiet">{order.status}</p>
-              </article>
-            ))}
-          </div>
-          {rows.length === 0 ? <p className="quiet">No orders yet.</p> : null}
-          <Pager page={current} pages={pages} from={rows.length ? start + 1 : 0} to={Math.min(start + pageSize, rows.length)} total={rows.length} onPage={setPage} />
-        </main>
+    <Shell>
+      <section className="intro">
+        <p className="eyebrow">Your account</p>
+        <h1>Orders</h1>
+        <p className="sub">Purchases placed with {session.customer.email}.</p>
+      </section>
+      {error ? <p className="warn">{error}</p> : null}
+      <div className="orders">
+        {view.map((order) => (
+          <article key={order.id}>
+            <div>
+              <strong>{order.orderNumber}</strong>
+              <span>{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(order.placedAt))}</span>
+            </div>
+            <h2>{order.offerName}</h2>
+            <ul>{order.lines.map((line) => <li key={line.sku}>{line.productName}</li>)}</ul>
+            <footer>
+              <b>{money.format(order.totalAmount)}</b>
+              <em>{order.status.charAt(0) + order.status.slice(1).toLowerCase()}</em>
+            </footer>
+          </article>
+        ))}
       </div>
-    </div>
+      {rows.length === 0 && !error ? <p className="empty">No orders yet. Purchase an offer to see it here.</p> : null}
+      <Pager page={current} pages={pages} from={rows.length ? start + 1 : 0} to={Math.min(start + pageSize, rows.length)} total={rows.length} onPage={setPage} />
+    </Shell>
   )
 }
 
@@ -275,23 +276,26 @@ function AuthPage({ mode }: { mode: "signin" | "signup" }) {
   }
 
   return (
-    <div className="auth-wrap">
-      <section className="auth">
-        <Link className="mark" to="/offers" aria-label="Heddle home">H</Link>
-        <h1>{mode === "signup" ? "Create your account" : "Welcome back"}</h1>
-        <p className="quiet">{mode === "signup" ? "Use it to purchase a set." : "Sign in to purchase a set."}</p>
-        <form onSubmit={(event) => void submit(event)}>
-          {mode === "signup" ? <label className="field">Full name<input value={fullName} onChange={(event) => setFullName(event.target.value)} required /></label> : null}
-          <label className="field">Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-          {mode === "signup" ? <label className="field">Phone<input value={phone} onChange={(event) => setPhone(event.target.value)} /></label> : null}
-          <label className="field">Password<input type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
-          {error ? <p className="warn">{error}</p> : null}
-          <button className="primary" type="submit" disabled={busy}>{mode === "signup" ? "Create account" : "Sign in"}</button>
-        </form>
-        <p className="switch">
-          {mode === "signup" ? <Link to={`/signin?next=${encodeURIComponent(next)}`}>Already have an account? Sign in</Link> : <Link to={`/signup?next=${encodeURIComponent(next)}`}>New here? Create an account</Link>}
-        </p>
+    <div className="auth">
+      <section className="auth-story">
+        <Link to="/offers">Heddle</Link>
+        <h1>{mode === "signup" ? "Create an account and purchase an offer." : "Sign in to purchase an offer."}</h1>
+        <p>Your orders stay on this account. The desk does not create them.</p>
       </section>
+      <form onSubmit={(event) => void submit(event)}>
+        <h2>{mode === "signup" ? "Create account" : "Sign in"}</h2>
+        {mode === "signup" ? <label>Full name<input value={fullName} onChange={(event) => setFullName(event.target.value)} required /></label> : null}
+        <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
+        {mode === "signup" ? <label>Phone<input value={phone} onChange={(event) => setPhone(event.target.value)} /></label> : null}
+        <label>Password<input type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
+        {error ? <p className="warn">{error}</p> : null}
+        <button type="submit" disabled={busy}>{mode === "signup" ? "Create account" : "Sign in"}</button>
+        <p className="switch">
+          {mode === "signup"
+            ? <Link to={`/signin?next=${encodeURIComponent(next)}`}>Already have an account? Sign in</Link>
+            : <Link to={`/signup?next=${encodeURIComponent(next)}`}>New here? Create an account</Link>}
+        </p>
+      </form>
     </div>
   )
 }
