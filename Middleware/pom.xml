@@ -9,6 +9,7 @@
 
   <modules>
     <module>service-observability</module>
+    <module>services-test-common</module>
     <module>product-catalog-service</module>
     <module>offers-service</module>
     <module>customers-service</module>
@@ -20,6 +21,7 @@
     <java.version>21</java.version>
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <surefire.failIfNoSpecifiedTests>false</surefire.failIfNoSpecifiedTests>
     <spring-boot.version>3.4.5</spring-boot.version>
     <jjwt.version>0.12.6</jjwt.version>
     <logstash.version>8.0</logstash.version>
@@ -53,6 +55,11 @@
         <groupId>net.logstash.logback</groupId>
         <artifactId>logstash-logback-encoder</artifactId>
         <version>${logstash.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.github.codemonstur</groupId>
+        <artifactId>embedded-redis</artifactId>
+        <version>1.4.4</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
