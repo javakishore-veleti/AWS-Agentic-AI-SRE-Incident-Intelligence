@@ -25,12 +25,25 @@ jobs:
           RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           set -euo pipefail
+          merge_pr() {
+            local number="$1"
+            local attempt
+            for attempt in 1 2 3 4 5 6; do
+              if gh pr merge "$number" --merge; then
+                echo "Merged pull request #${number}."
+                return 0
+              fi
+              sleep 10
+            done
+            echo "Pull request #${number} stayed open."
+            return 1
+          }
           promote() {
             local body="$1"
-            local open ahead
+            local open ahead number
             open="$(gh pr list --base main --head develop --state open --json number --jq '.[0].number // empty')"
             if [ -n "$open" ]; then
-              echo "Pull request #${open} is already open."
+              merge_pr "$open"
               return 0
             fi
             ahead="$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...develop" --jq .ahead_by)"
@@ -39,6 +52,8 @@ jobs:
               return 0
             fi
             gh pr create --base main --head develop --title "Promote develop to main" --body "$body"
+            number="$(gh pr list --base main --head develop --state open --json number --jq '.[0].number')"
+            merge_pr "$number"
           }
           if [ "$EVENT" = "pull_request" ]; then
             number="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" --jq '.pull_requests[0].number // empty')"
@@ -46,7 +61,7 @@ jobs:
               base="$(gh pr view "$number" --json baseRefName --jq .baseRefName)"
               state="$(gh pr view "$number" --json state --jq .state)"
               if [ "$state" = "OPEN" ] && { [ "$base" = "develop" ] || [ "$base" = "main" ]; }; then
-                gh pr merge "$number" --merge
+                merge_pr "$number"
               fi
               if [ "$base" = "develop" ]; then
                 promote "CI passed on the pull request into develop. This pull request carries those commits to main."
