@@ -1,4 +1,4 @@
-name: Land
+name: Merge pull request after CI passes
 
 on:
   workflow_run:
@@ -10,13 +10,14 @@ permissions:
   pull-requests: write
 
 jobs:
-  land:
+  merge:
+    name: Merge the pull request
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
-      - name: Merge a green pull request or open the main promotion
+      - name: Merge the pull request, then merge develop into main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -38,7 +39,7 @@ jobs:
             echo "Pull request #${number} stayed open."
             return 1
           }
-          promote() {
+          merge_develop_into_main() {
             local body="$1"
             local open ahead number
             open="$(gh pr list --base main --head develop --state open --json number --jq '.[0].number // empty')"
@@ -51,7 +52,7 @@ jobs:
               echo "develop has no commits that main does not already have."
               return 0
             fi
-            gh pr create --base main --head develop --title "Promote develop to main" --body "$body"
+            gh pr create --base main --head develop --title "Merge develop into main" --body "$body"
             number="$(gh pr list --base main --head develop --state open --json number --jq '.[0].number')"
             merge_pr "$number"
           }
@@ -64,10 +65,10 @@ jobs:
                 merge_pr "$number"
               fi
               if [ "$base" = "develop" ]; then
-                promote "CI passed on the pull request into develop. This pull request carries those commits to main."
+                merge_develop_into_main "CI passed on the pull request into develop. This pull request carries those commits to main."
               fi
             fi
           fi
           if [ "$EVENT" = "push" ] && [ "$BRANCH" = "develop" ]; then
-            promote "CI passed on develop."
+            merge_develop_into_main "CI passed on develop."
           fi

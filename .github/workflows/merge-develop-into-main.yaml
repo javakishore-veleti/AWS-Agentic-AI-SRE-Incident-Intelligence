@@ -1,4 +1,4 @@
-name: Promote main
+name: Merge develop into main
 
 on:
   workflow_dispatch:
@@ -11,9 +11,10 @@ permissions:
 
 jobs:
   merge:
+    name: Merge develop into main
     runs-on: ubuntu-latest
     steps:
-      - name: Merge a green develop pull request into main
+      - name: Merge develop into main when every check has passed
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -25,7 +26,7 @@ jobs:
             exit 0
           fi
           if ! gh pr checks "$number"; then
-            echo "Pull request #${number} is not green."
+            echo "Pull request #${number} still has a check that has not passed."
             exit 0
           fi
           gh pr merge "$number" --merge
