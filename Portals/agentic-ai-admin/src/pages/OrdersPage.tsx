@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { loadOrders, removeOrder, saveOrder } from "../api"
 import type { OrderStatus, ShopOrder } from "../types"
-import { Field, Modal, Pager, dayKey, money, pretty, usePaged, when } from "../ui"
+import { Field, Modal, Pager, money, pretty, usePaged, when } from "../ui"
 
 export function OrdersPage() {
   const [rows, setRows] = useState<ShopOrder[]>([])
@@ -16,24 +16,24 @@ export function OrdersPage() {
   const [busy, setBusy] = useState(false)
 
   async function refresh() {
-    setRows(await loadOrders())
+    setRows(await loadOrders(criteria))
   }
 
   useEffect(() => {
-    refresh().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Could not load orders."))
-  }, [])
+    let active = true
+    loadOrders(criteria)
+      .then((loaded) => {
+        if (active) setRows(loaded)
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : "Could not load orders.")
+      })
+    return () => {
+      active = false
+    }
+  }, [criteria])
 
-  const filtered = useMemo(() => rows.filter((row) => {
-    if (criteria.customer && !row.customerName.toLowerCase().includes(criteria.customer.toLowerCase())) return false
-    if (criteria.email && !row.customerEmail.toLowerCase().includes(criteria.email.toLowerCase())) return false
-    if (criteria.offer && !row.offerName.toLowerCase().includes(criteria.offer.toLowerCase())) return false
-    if (criteria.status && row.status !== criteria.status) return false
-    const placed = dayKey(row.placedAt)
-    if (criteria.from && placed < criteria.from) return false
-    if (criteria.to && placed > criteria.to) return false
-    return true
-  }), [rows, criteria])
-  const page = usePaged(filtered, JSON.stringify(criteria))
+  const page = usePaged(rows, JSON.stringify(criteria))
 
   function openEdit(row: ShopOrder) {
     setEditing(row)
@@ -79,7 +79,7 @@ export function OrdersPage() {
       <div className="page-head">
         <div>
           <h1>Orders</h1>
-          <p className="lede">Latest 100 orders placed in the shop. The desk can review, update, or remove them.</p>
+          <p className="lede">Latest 100 matching orders. From and to are inclusive UTC calendar days.</p>
         </div>
       </div>
       {notice ? <div className="banner">{notice}</div> : null}

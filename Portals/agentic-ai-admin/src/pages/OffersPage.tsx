@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { loadOffers, loadProducts, removeOffer, saveOffer } from "../api"
 import type { Offer, OfferStatus, Product } from "../types"
 import { Field, Modal, Pager, money, pretty, usePaged } from "../ui"
@@ -18,24 +18,28 @@ export function OffersPage() {
   const [busy, setBusy] = useState(false)
 
   async function refresh() {
-    const [offerRows, productRows] = await Promise.all([loadOffers(), loadProducts()])
+    const [offerRows, productRows] = await Promise.all([loadOffers(criteria), loadProducts({ name: "", sku: "", category: "", status: "" })])
     setRows(offerRows)
     setProducts(productRows)
   }
 
   useEffect(() => {
-    refresh().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Could not load offers."))
-  }, [])
+    let active = true
+    Promise.all([loadOffers(criteria), loadProducts({ name: "", sku: "", category: "", status: "" })])
+      .then(([offerRows, productRows]) => {
+        if (!active) return
+        setRows(offerRows)
+        setProducts(productRows)
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : "Could not load offers.")
+      })
+    return () => {
+      active = false
+    }
+  }, [criteria])
 
-  const filtered = useMemo(() => rows.filter((row) => {
-    const productNames = row.products.map((product) => `${product.name} ${product.sku}`).join(" ").toLowerCase()
-    if (criteria.name && !row.name.toLowerCase().includes(criteria.name.toLowerCase())) return false
-    if (criteria.code && !row.code.toLowerCase().includes(criteria.code.toLowerCase())) return false
-    if (criteria.product && !productNames.includes(criteria.product.toLowerCase())) return false
-    if (criteria.status && row.status !== criteria.status) return false
-    return true
-  }), [rows, criteria])
-  const page = usePaged(filtered, JSON.stringify(criteria))
+  const page = usePaged(rows, JSON.stringify(criteria))
 
   function openNew() {
     setForm(empty)
@@ -120,7 +124,7 @@ export function OffersPage() {
       <div className="page-head">
         <div>
           <h1>Offers</h1>
-          <p className="lede">Latest 100 offers, each mapped to catalog products.</p>
+          <p className="lede">Latest 100 matching offers, each mapped to catalog products.</p>
         </div>
         <button className="primary" type="button" onClick={openNew}>New offer</button>
       </div>

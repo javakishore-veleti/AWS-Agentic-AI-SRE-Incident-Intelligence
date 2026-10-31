@@ -2,6 +2,7 @@ package com.larkspur.catalog;
 
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,8 +18,29 @@ class ProductService {
     this.inventory = inventory;
   }
 
-  List<ProductResponse> latest() {
-    return products.findTop100ByOrderByCreatedAtDesc().stream().map(ProductService::toResponse).toList();
+  List<ProductResponse> latest(String name, String sku, String category, String status) {
+    return products.search(text(name), text(sku), text(category), status(status), PageRequest.of(0, 100)).stream()
+        .map(ProductService::toResponse)
+        .toList();
+  }
+
+  private static String text(String value) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    return value.trim();
+  }
+
+  private static ProductStatus status(String value) {
+    String text = text(value);
+    if (text == null) {
+      return null;
+    }
+    try {
+      return ProductStatus.valueOf(text);
+    } catch (IllegalArgumentException exception) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown status.");
+    }
   }
 
   List<ProductResponse> findAll(List<UUID> ids) {

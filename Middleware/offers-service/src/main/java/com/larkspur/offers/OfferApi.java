@@ -33,7 +33,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -75,8 +77,12 @@ class OfferController {
   }
 
   @GetMapping
-  List<OfferResponse> latest() {
-    return offers.latest();
+  List<OfferResponse> latest(
+      @RequestParam(required = false) String name,
+      @RequestParam(required = false) String code,
+      @RequestParam(required = false) String product,
+      @RequestParam(required = false) String status) {
+    return offers.latest(name, code, product, status);
   }
 
   @GetMapping("/active")
@@ -119,7 +125,42 @@ class OfferService {
 
   @Transactional(readOnly = true)
   List<OfferResponse> latest() {
-    return mapAll(offers.findTop100ByOrderByCreatedAtDesc());
+    return latest(null, null, null, null);
+  }
+
+  @Transactional(readOnly = true)
+  List<OfferResponse> latest(String name, String code, String product, String status) {
+    String productText = text(product);
+    List<Offer> rows = offers.search(text(name), text(code), status(status), PageRequest.of(0, productText == null ? 100 : 1000));
+    List<OfferResponse> mapped = mapAll(rows);
+    if (productText == null) {
+      return mapped;
+    }
+    String needle = productText.toLowerCase();
+    return mapped.stream()
+        .filter(offer -> offer.products().stream().anyMatch(item ->
+            item.name().toLowerCase().contains(needle) || item.sku().toLowerCase().contains(needle)))
+        .limit(100)
+        .toList();
+  }
+
+  private static String text(String value) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    return value.trim();
+  }
+
+  private static OfferStatus status(String value) {
+    String text = text(value);
+    if (text == null) {
+      return null;
+    }
+    try {
+      return OfferStatus.valueOf(text);
+    } catch (IllegalArgumentException exception) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown status.");
+    }
   }
 
   @Transactional(readOnly = true)

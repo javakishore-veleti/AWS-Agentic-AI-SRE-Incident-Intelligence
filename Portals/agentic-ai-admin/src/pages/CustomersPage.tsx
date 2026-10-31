@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { loadCustomers, removeCustomer, saveCustomer } from "../api"
 import type { Customer, CustomerStatus } from "../types"
 import { Field, Modal, Pager, pretty, usePaged } from "../ui"
@@ -17,20 +17,24 @@ export function CustomersPage() {
   const [busy, setBusy] = useState(false)
 
   async function refresh() {
-    setRows(await loadCustomers())
+    setRows(await loadCustomers(criteria))
   }
 
   useEffect(() => {
-    refresh().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Could not load customers."))
-  }, [])
+    let active = true
+    loadCustomers(criteria)
+      .then((loaded) => {
+        if (active) setRows(loaded)
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : "Could not load customers.")
+      })
+    return () => {
+      active = false
+    }
+  }, [criteria])
 
-  const filtered = useMemo(() => rows.filter((row) => {
-    if (criteria.name && !row.fullName.toLowerCase().includes(criteria.name.toLowerCase())) return false
-    if (criteria.email && !row.email.toLowerCase().includes(criteria.email.toLowerCase())) return false
-    if (criteria.status && row.status !== criteria.status) return false
-    return true
-  }), [rows, criteria])
-  const page = usePaged(filtered, JSON.stringify(criteria))
+  const page = usePaged(rows, JSON.stringify(criteria))
 
   function openNew() {
     setForm(empty)
@@ -94,7 +98,7 @@ export function CustomersPage() {
       <div className="page-head">
         <div>
           <h1>Customers</h1>
-          <p className="lede">Latest 100 customers. Shop signups appear here too.</p>
+          <p className="lede">Latest 100 matching customers. Shop signups appear here too.</p>
         </div>
         <button className="primary" type="button" onClick={openNew}>New customer</button>
       </div>

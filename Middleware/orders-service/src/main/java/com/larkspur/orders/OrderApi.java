@@ -9,13 +9,20 @@ import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -29,6 +36,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -39,6 +47,25 @@ interface OrderRepository extends JpaRepository<CustomerOrder, UUID> {
   List<CustomerOrder> findTop100ByOrderByPlacedAtDesc();
 
   List<CustomerOrder> findTop100ByCustomerIdOrderByPlacedAtDesc(UUID customerId);
+
+  @Query("""
+      select o from CustomerOrder o
+      where (:customer is null or lower(o.customerName) like lower(concat('%', :customer, '%')))
+        and (:email is null or lower(o.customerEmail) like lower(concat('%', :email, '%')))
+        and (:offer is null or lower(o.offerName) like lower(concat('%', :offer, '%')))
+        and (:status is null or o.status = :status)
+        and (:from is null or o.placedAt >= :from)
+        and (:toExclusive is null or o.placedAt < :toExclusive)
+      order by o.placedAt desc
+      """)
+  List<CustomerOrder> search(
+      @Param("customer") String customer,
+      @Param("email") String email,
+      @Param("offer") String offer,
+      @Param("status") OrderStatus status,
+      @Param("from") Instant from,
+      @Param("toExclusive") Instant toExclusive,
+      Pageable pageable);
 }
 
 record PurchaseRequest(@NotNull UUID offerId) {}
@@ -80,8 +107,14 @@ class OrderController {
   }
 
   @GetMapping
-  List<OrderResponse> latest() {
-    return orders.latest();
+  List<OrderResponse> latest(
+      @RequestParam(required = false) String customer,
+      @RequestParam(required = false) String email,
+      @RequestParam(required = false) String offer,
+      @RequestParam(required = false) String status,
+      @RequestParam(required = false) String from,
+      @RequestParam(required = false) String to) {
+    return orders.latest(customer, email, offer, status, from, to);
   }
 
   @GetMapping("/mine")
@@ -132,8 +165,65 @@ class OrderService {
   }
 
   @Transactional(readOnly = true)
-  List<OrderResponse> latest() {
-    return orders.findTop100ByOrderByPlacedAtDesc().stream().map(OrderService::toResponse).toList();
+  List<OrderResponse> latest(String customer, String email, String offer, String status, String from, String to) {
+    return orders.search(
+            text(customer),
+            text(email),
+            text(offer),
+            status(status),
+            startOfDay(from),
+            startOfNextDay(to),
+            PageRequest.of(0, 100))
+        .stream()
+        .map(OrderService::toResponse)
+        .toList();
+  }
+
+  private static String text(String value) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    return value.trim();
+  }
+
+  private static OrderStatus status(String value) {
+    String text = text(value);
+    if (text == null) {
+      return null;
+    }
+    try {
+      return OrderStatus.valueOf(text);
+    } catch (IllegalArgumentException exception) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown status.");
+    }
+  }
+
+  private static Instant startOfDay(String day) {
+    LocalDate date = date(day);
+    if (date == null) {
+      return null;
+    }
+    return date.atStartOfDay(ZoneOffset.UTC).toInstant();
+  }
+
+  private static Instant startOfNextDay(String day) {
+    LocalDate date = date(day);
+    if (date == null) {
+      return null;
+    }
+    return date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+  }
+
+  private static LocalDate date(String day) {
+    String text = text(day);
+    if (text == null) {
+      return null;
+    }
+    try {
+      return LocalDate.parse(text);
+    } catch (DateTimeParseException exception) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown date.");
+    }
   }
 
   @Transactional(readOnly = true)
