@@ -25,7 +25,7 @@ This file is the working procedure for agents in this repository. Product behavi
 
 `Middleware/agents` is not a directory. Mention it only as a future folder, and label it as future. The customer-facing brand is Heddle. Java packages are `com.larkspur`. Leave both names alone unless a task asks to rename one of them.
 
-These are absent from the tree. Treat them as targets in DESIGN.md and ARCHITECTURE.md, and do not describe them as implemented: an API gateway, OpenTelemetry, a root `.env.example`, server-side list filters, soft-delete, idempotent checkout, and a payment simulation.
+These are absent from the tree. Treat them as targets in DESIGN.md and ARCHITECTURE.md, and do not describe them as implemented: an API gateway, a root `.env.example`, server-side list filters, soft-delete, idempotent checkout, and a payment simulation. CloudWatch, X-Ray, and Azure Monitor exporters are also absent. Local metrics, logs, and traces are selected with `observability.*.exporter`.
 
 ## Non-negotiable principles
 
@@ -44,7 +44,7 @@ The commerce services and both portals are the system under test. The platform a
 
 - Kubernetes (kind locally, Amazon EKS for a later validated deployment) when workload behavior must be tested.
 - PostgreSQL on Amazon RDS where a managed database is appropriate. Local Postgres and HikariCP are already how the Java services run.
-- OpenTelemetry for traces, metrics, and logs, plus a queryable trace backend. Validate each path before claiming it works. A named AWS service does not imply the telemetry is there.
+- Local traces already export OTLP to Jaeger when `observability.traces.exporter=otlp`. Metrics use Prometheus and logs use the console or Logstash. CloudWatch, X-Ray, and Azure Monitor are not wired. Validate a path before claiming it works. A named AWS or Azure service does not imply that telemetry is there.
 - Amazon CloudWatch and least-privilege IAM for the AWS deployment.
 - k6 profiles for repeatable load.
 - Configurable LLM access through environment settings. Compare only models the project can actually call.

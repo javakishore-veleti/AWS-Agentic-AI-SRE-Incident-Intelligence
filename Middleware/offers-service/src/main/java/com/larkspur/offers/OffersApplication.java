@@ -5,6 +5,8 @@ import java.time.Duration;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import io.micrometer.observation.ObservationRegistry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -29,11 +31,15 @@ public class OffersApplication {
   }
 
   @Bean
-  RestClient catalogRestClient(@Value("${clients.catalog-base-url}") String baseUrl) {
+  RestClient catalogRestClient(
+      @Value("${clients.catalog-base-url}") String baseUrl,
+      ObjectProvider<ObservationRegistry> observations) {
     HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
     JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);
     factory.setReadTimeout(Duration.ofSeconds(4));
-    return RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
+    RestClient.Builder builder = RestClient.builder().baseUrl(baseUrl).requestFactory(factory);
+    observations.ifAvailable(builder::observationRegistry);
+    return builder.build();
   }
 }
 

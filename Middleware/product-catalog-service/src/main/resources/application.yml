@@ -32,3 +32,12 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+
+observability:
+  metrics:
+    exporter: ${OBSERVABILITY_METRICS_EXPORTER:prometheus}
+  logs:
+    exporter: ${OBSERVABILITY_LOGS_EXPORTER:console}
+  traces:
+    exporter: ${OBSERVABILITY_TRACES_EXPORTER:none}
+    otlp-endpoint: ${OBSERVABILITY_TRACES_OTLP_ENDPOINT:http://127.0.0.1:4318/v1/traces}

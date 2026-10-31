@@ -35,6 +35,34 @@ if ! command -v mvn >/dev/null 2>&1; then
   exit 1
 fi
 
+port_open() {
+  (echo >/dev/tcp/127.0.0.1/"$1") >/dev/null 2>&1
+}
+
+if [[ -z "${OBSERVABILITY_METRICS_EXPORTER:-}" ]]; then
+  export OBSERVABILITY_METRICS_EXPORTER=prometheus
+fi
+if [[ -z "${OBSERVABILITY_LOGS_EXPORTER:-}" ]]; then
+  if port_open 5044; then
+    export OBSERVABILITY_LOGS_EXPORTER=logstash
+  else
+    export OBSERVABILITY_LOGS_EXPORTER=console
+  fi
+fi
+if [[ -z "${OBSERVABILITY_TRACES_EXPORTER:-}" ]]; then
+  if port_open 4318; then
+    export OBSERVABILITY_TRACES_EXPORTER=otlp
+  else
+    export OBSERVABILITY_TRACES_EXPORTER=none
+  fi
+fi
+if [[ -z "${OBSERVABILITY_TRACES_OTLP_ENDPOINT:-}" ]]; then
+  export OBSERVABILITY_TRACES_OTLP_ENDPOINT=http://127.0.0.1:4318/v1/traces
+fi
+echo "Metrics exporter: ${OBSERVABILITY_METRICS_EXPORTER}"
+echo "Logs exporter:    ${OBSERVABILITY_LOGS_EXPORTER}"
+echo "Traces exporter:  ${OBSERVABILITY_TRACES_EXPORTER}"
+
 SERVICES=(
   "product-catalog-service:8081:/actuator/health"
   "inventory-service:8085:/actuator/health"

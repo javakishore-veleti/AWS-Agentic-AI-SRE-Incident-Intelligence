@@ -8,6 +8,7 @@
   <name>middleware</name>
 
   <modules>
+    <module>service-observability</module>
     <module>product-catalog-service</module>
     <module>offers-service</module>
     <module>customers-service</module>

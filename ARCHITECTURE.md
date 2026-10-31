@@ -7,7 +7,7 @@ This file records how Heddle is structured and which contracts exist today. Prod
 1. **Two React and TypeScript portals** call the Java services directly. `Portals/agentic-ai-admin` uses Vite on port 5173. `Portals/ecommerce-portal` uses Vite on port 5174. There is no API gateway or BFF.
 2. **Five Java 21 Spring Boot services** live under `Middleware/`. Each one owns a PostgreSQL database, uses HikariCP (`HIKARI_MAX_POOL`, default 10), and updates schema with Hibernate `ddl-auto: update`. There are no Flyway or Liquibase migrations in the tree.
 3. **The investigation agent** is `Middleware/investigation-agent` (FastAPI, LangGraph, Uvicorn). `Middleware/agents` is not a folder. Use that name only if a future task creates it, and label the path as future.
-4. **Local dependencies** are independent Compose projects in `CICD/Local/Postgres`, `Redis`, `Prometheus`, and `ELK`. Root npm scripts call `docker-all-up.sh`, `docker-all-down.sh`, and `docker-all-status.sh`.
+4. **Local dependencies** are independent Compose projects in `CICD/Local/Postgres`, `Redis`, `Prometheus`, `ELK`, and `Jaeger`. Root npm scripts call `docker-all-up.sh`, `docker-all-down.sh`, and `docker-all-status.sh`. `local:middleware:all:*` and `local:portals:all:*` start the Java services and the two Vite apps. `local:middleware-portals:all:*` calls those scripts in order.
 5. **AWS** (EKS, RDS, CloudWatch, least-privilege IAM) is a later deployment target. Nothing in this repository provisions it.
 
 | Service | Port | Database |
@@ -74,18 +74,28 @@ Still to build. Do not document these as present:
 - An idempotency key on purchase, and a payment step labeled as a simulation until a real provider is approved.
 - Authorization on desk writes and on `GET /api/orders`, so a shopper token cannot read another customer's orders.
 - Versioned migrations in place of `ddl-auto: update`.
-- OpenTelemetry across the purchase path, with a queryable trace backend. Prometheus alone is not that backend.
+- Investigation queries against the trace store. Services can export OTLP when `observability.traces.exporter=otlp`. Prometheus remains the metrics store.
 - Read-only investigation tools `query_logs`, `query_metrics`, `query_traces`, `get_kubernetes_events`, and `get_deployment_history`, returning the report contract in CLAUDE.md.
 - A root `.env.example` that lists local ports and placeholders. The Compose files remain the source for the ports below until that file exists.
 - Amazon EKS, RDS, CloudWatch, and least-privilege IAM, validated separately from local Compose.
 
 ## Observability today
 
-Each Java service exposes Actuator `health`, `info`, `prometheus`, and `metrics`. `CICD/Local/Prometheus/prometheus.yml` scrapes `host.docker.internal:8081` through `8085` at `/actuator/prometheus`.
+Each Java service exposes Actuator `health`, `info`, `prometheus`, and `metrics`, and depends on Micrometer. `CICD/Local/Prometheus/prometheus.yml` scrapes `host.docker.internal:8081` through `8085` at `/actuator/prometheus`.
 
-The ELK Compose project publishes Elasticsearch on `localhost:9200`, Kibana on `localhost:5601`, and Logstash TCP on `localhost:5044`. Service `logback-spring.xml` files send JSON to that Logstash address only when the `elk` Spring profile is active. The default profile logs a plain console pattern.
+Exporter choice is `observability.metrics.exporter`, `observability.logs.exporter`, and `observability.traces.exporter`, overridable with `OBSERVABILITY_METRICS_EXPORTER`, `OBSERVABILITY_LOGS_EXPORTER`, and `OBSERVABILITY_TRACES_EXPORTER`.
 
-There is no OpenTelemetry dependency or collector in the tree. The investigation agent does not query Prometheus or Elasticsearch.
+| Signal | Wired values | Reserved, startup fails if selected |
+|---|---|---|
+| Metrics | `prometheus`, `none` | `cloudwatch`, `azure-monitor` |
+| Logs | `console`, `logstash` | `cloudwatch`, `azure-monitor` |
+| Traces | `none`, `otlp` | `xray`, `azure-monitor` |
+
+`logstash` activates the `elk` Spring profile. Logback then sends JSON to Logstash TCP `localhost:5044`. `console` does not. The ELK Compose project publishes Elasticsearch on `localhost:9200` and Kibana on `localhost:5601`.
+
+`otlp` turns on Micrometer tracing with the OpenTelemetry bridge and posts spans to `observability.traces.otlp-endpoint`, default `http://127.0.0.1:4318/v1/traces`. Local Jaeger all-in-one listens there and serves its UI on `http://localhost:16686`. The same OTLP endpoint is the switch for a later collector. `none` leaves tracing off. `local:middleware:all:start` selects `logstash` when port 5044 is open and `otlp` when port 4318 is open, unless those variables are already set.
+
+The investigation agent does not query Prometheus, Elasticsearch, or Jaeger.
 
 ## Local operations
 
@@ -95,10 +105,10 @@ npm run local:containers:all:status
 npm run local:containers:all:stop
 ```
 
-`docker-all-up.sh` creates the external network `sre-incident-net` when it is missing, then starts Postgres, Redis, Prometheus, and ELK with Docker Compose v2. `docker-all-up.sh` and `docker-all-down.sh` use `set -euo pipefail` and fail if Docker or Compose is missing. `docker-all-status.sh` prints each stack and continues when a stack is down. Starting the containers does not start the Java processes, the agent, or the portals.
+`docker-all-up.sh` creates the external network `sre-incident-net` when it is missing, then starts Postgres, Redis, Prometheus, ELK, and Jaeger with Docker Compose v2. `docker-all-up.sh` and `docker-all-down.sh` use `set -euo pipefail` and fail if Docker or Compose is missing. `docker-all-status.sh` prints each stack and continues when a stack is down. Starting the containers does not start the Java processes, the agent, or the portals.
 
-Default published ports: Postgres `5432`, Redis `6379`, Prometheus `9090`, Elasticsearch `9200`, Kibana `5601`, Logstash TCP `5044`.
+Default published ports: Postgres `5432`, Redis `6379`, Prometheus `9090`, Elasticsearch `9200`, Kibana `5601`, Logstash TCP `5044`, Jaeger UI `16686`, Jaeger OTLP `4318`.
 
 ## Delivery gaps
 
-The commerce path and the health-only agent are in the tree. Still open: server-side filtered lists, desk and order-list authorization, order soft cancellation, idempotent purchase, a labeled payment simulation, trace instrumentation, investigation tools beyond health, k6, and any AWS deployment. Claim a gap closed only after the code and a run show it.
+The commerce path and the health-only agent are in the tree. Still open: server-side filtered lists, desk and order-list authorization, order soft cancellation, idempotent purchase, a labeled payment simulation, investigation tools beyond health, k6, and any AWS or Azure deployment. Claim a gap closed only after the code and a run show it.

@@ -9,7 +9,7 @@ else
   echo "Network sre-incident-net: absent"
 fi
 
-for stack in Postgres Redis Prometheus ELK; do
+for stack in Postgres Redis Prometheus ELK Jaeger; do
   echo
   echo "== ${stack} =="
   docker compose -f "${ROOT}/${stack}/docker-compose.yaml" ps || true
