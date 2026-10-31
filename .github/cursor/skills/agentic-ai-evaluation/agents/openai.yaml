@@ -1,0 +1,3 @@
+interface:
+  display_name: "Agentic Ai Evaluation"
+  short_description: "Build a reproducible multi-model benchmark for agentic SRE incident investigation with real evidence"

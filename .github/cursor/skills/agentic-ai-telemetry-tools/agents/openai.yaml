@@ -1,0 +1,3 @@
+interface:
+  display_name: "Agentic Ai Telemetry Tools"
+  short_description: "Implement read-only Prometheus Elasticsearch Jaeger and deployment-history tools for LangGraph SRE a"

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Agentic Ai Remediation Guardrails"
+  short_description: "Build SRE remediation recommendation agents human approval gates and safety guardrails."

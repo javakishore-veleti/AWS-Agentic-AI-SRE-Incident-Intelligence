@@ -1,0 +1,3 @@
+interface:
+  display_name: "Agentic Ai Root Cause"
+  short_description: "Generate evidence correlation hypothesis analysis and validation agents for SRE incidents using Lang"

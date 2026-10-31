@@ -1,0 +1,3 @@
+interface:
+  display_name: "Sre Incident Injection"
+  short_description: "Generate controlled repeatable SRE incident scenarios load tests rollback and evidence capture for J"

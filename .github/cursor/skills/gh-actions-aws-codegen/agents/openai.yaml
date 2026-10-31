@@ -1,0 +1,3 @@
+interface:
+  display_name: "Gh Actions Aws Codegen"
+  short_description: "Generate AWS CloudFormation infrastructure and manual GitHub Actions setup/destroy/deploy workflows "

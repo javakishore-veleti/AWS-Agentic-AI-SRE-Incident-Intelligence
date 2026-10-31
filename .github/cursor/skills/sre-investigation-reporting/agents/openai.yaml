@@ -1,0 +1,3 @@
+interface:
+  display_name: "Sre Investigation Reporting"
+  short_description: "Generate evidence-cited SRE incident reports and a reviewable investigation UI or export."

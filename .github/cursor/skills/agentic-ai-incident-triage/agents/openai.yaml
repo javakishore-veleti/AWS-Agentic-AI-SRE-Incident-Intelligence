@@ -1,0 +1,3 @@
+interface:
+  display_name: "Agentic Ai Incident Triage"
+  short_description: "Generate the LangGraph incident triage and telemetry collection agents for real microservice inciden"
