@@ -28,4 +28,4 @@ After stop, those same status lines print `down`. `docker-all-status.sh` prints 
 
 ## Failure
 
-Append the command and its full output to `SUPERPOWERS_GitIssues_Progress.md` before editing anything. Change only the script, config, or runbook line that the output shows is wrong. Rerun that command. The closing evidence is the clean rerun.
+Post the command and its full output as a comment on GitHub issue #1 before editing anything. Keep `SUPERPOWERS_GitIssues_Progress.md` to the slash-command table. Change only the script, config, or runbook line that the output shows is wrong. Rerun that command. The closing evidence is the clean rerun, also as an issue comment.

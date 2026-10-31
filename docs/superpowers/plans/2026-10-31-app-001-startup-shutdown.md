@@ -14,7 +14,7 @@
 
 - Work only in `.worktrees/issue-1-app-001` on branch `issue/1-app-001-startup-shutdown`.
 - Use the existing `local:*` npm scripts. Do not add a new runner.
-- Append a failing command and its full output to `SUPERPOWERS_GitIssues_Progress.md` before any edit.
+- Post a failing command and its full output as a comment on GitHub issue #1 before any edit. Keep `SUPERPOWERS_GitIssues_Progress.md` to the slash-command table.
 - Change only the script, config, or runbook line that the failed output names.
 - The accepted result is the clean rerun, not the earlier failure.
 - After start, ports 8081, 8082, 8083, 8084, 8085, 8090, 5173, and 5174 report `up`.
@@ -32,13 +32,13 @@
 - Consumes: root script `local:containers:all:start`
 - Produces: status text containing `Network sre-incident-net: present` and a `docker compose ps` section for Postgres, Redis, Prometheus, ELK, and Jaeger
 
-- [ ] **Step 1: Run the container start**
+- [x] **Step 1: Run the container start**
 
 ```bash
 npm run local:containers:all:start
 ```
 
-- [ ] **Step 2: Run the status check**
+- [x] **Step 2: Run the status check**
 
 ```bash
 npm run local:containers:all:status
@@ -46,11 +46,11 @@ npm run local:containers:all:status
 
 Expected: exit 0, first line `Network sre-incident-net: present`, and a section for Postgres, Redis, Prometheus, ELK, and Jaeger.
 
-- [ ] **Step 3: Record or repair**
+- [x] **Step 3: Record or repair**
 
-If the status command fails or the network line is `absent`, append the command and the full output to `SUPERPOWERS_GitIssues_Progress.md`, edit only the file that output identifies, and rerun Step 1 and Step 2.
+Status passed. No repair.
 
-- [ ] **Step 4: Commit the evidence note when the status passes**
+- [x] **Step 4: Commit the evidence note when the status passes**
 
 ```bash
 git add SUPERPOWERS_GitIssues_Progress.md
@@ -67,13 +67,13 @@ git commit -m "Record the APP-001 container start status."
 - Consumes: container network `sre-incident-net` from Task 1
 - Produces: one `up` line each for ports 8081, 8082, 8083, 8084, 8085, and 8090
 
-- [ ] **Step 1: Run the middleware start**
+- [x] **Step 1: Run the middleware start**
 
 ```bash
 npm run local:middleware:all:start
 ```
 
-- [ ] **Step 2: Run the health check**
+- [x] **Step 2: Run the health check**
 
 ```bash
 npm run local:middleware:all:status
@@ -90,9 +90,11 @@ inventory-service            8085   up
 investigation-agent          8090   up
 ```
 
-- [ ] **Step 3: Record or repair**
+- [x] **Step 3: Record or repair**
 
-If any line is `down`, append the start command and the status output to `SUPERPOWERS_GitIssues_Progress.md` before editing. When the start output says `Install Middleware/investigation-agent/requirements.txt`, run:
+The agent was down until `requirements.txt` was installed and the `signals` node was renamed to `collect_signals`. The clean status is on issue #1.
+
+If any line is `down`, post the start command and the status output as a comment on GitHub issue #1 before editing. When the start output says `Install Middleware/investigation-agent/requirements.txt`, run:
 
 ```bash
 python3 -m pip install -r Middleware/investigation-agent/requirements.txt
@@ -117,13 +119,13 @@ git commit -m "Record the APP-001 middleware health status."
 - Consumes: nothing from the Java health lines except that the portal scripts are separate processes
 - Produces: `up` for ports 5173 and 5174
 
-- [ ] **Step 1: Run the portal start**
+- [x] **Step 1: Run the portal start**
 
 ```bash
 npm run local:portals:all:start
 ```
 
-- [ ] **Step 2: Run the portal status check**
+- [x] **Step 2: Run the portal status check**
 
 ```bash
 npm run local:portals:all:status
@@ -136,11 +138,11 @@ agentic-ai-admin       5173   up
 ecommerce-portal       5174   up
 ```
 
-- [ ] **Step 3: Record or repair**
+- [x] **Step 3: Record or repair**
 
-If either line is `down`, append the command and the full output to `SUPERPOWERS_GitIssues_Progress.md`, edit only the file that output identifies, and rerun Step 1 and Step 2.
+Both lines were `up`. Status is on issue #1. The progress file stays the slash table, so there is no evidence note to commit.
 
-- [ ] **Step 4: Commit the evidence note when both lines are `up`**
+- [x] **Step 4: Commit the evidence note when both lines are `up`**
 
 ```bash
 git add SUPERPOWERS_GitIssues_Progress.md
@@ -187,7 +189,7 @@ Expected: exit 1 and no output. `lsof` exits 1 when it finds no listener.
 
 - [ ] **Step 4: Record or repair**
 
-If any status line is `up`, or `lsof` prints a listener, append the commands and the full output to `SUPERPOWERS_GitIssues_Progress.md`, edit only the file that output identifies, and rerun Steps 1–3.
+If any status line is `up`, or `lsof` prints a listener, post the commands and the full output as a comment on GitHub issue #1, edit only the file that output identifies, and rerun Steps 1–3.
 
 - [ ] **Step 5: Commit the shutdown evidence when the ports are clear**
 
