@@ -1,0 +1,30 @@
+name: sre-postgres
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sre-postgres
+    environment:
+      POSTGRES_USER: sre
+      POSTGRES_PASSWORD: sre_local_password
+      POSTGRES_DB: product_catalog
+    ports:
+      - "5432:5432"
+    volumes:
+      - sre-postgres-data:/var/lib/postgresql/data
+      - ./init/01-databases.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sre -d product_catalog"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - sre-incident-net
+
+volumes:
+  sre-postgres-data:
+
+networks:
+  sre-incident-net:
+    external: true
+    name: sre-incident-net

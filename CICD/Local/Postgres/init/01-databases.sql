@@ -1,0 +1,4 @@
+CREATE DATABASE offers;
+CREATE DATABASE customers;
+CREATE DATABASE orders;
+CREATE DATABASE inventory;

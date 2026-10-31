@@ -1,0 +1,27 @@
+name: sre-prometheus
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: sre-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - sre-prometheus-data:/prometheus
+    networks:
+      - sre-incident-net
+
+volumes:
+  sre-prometheus-data:
+
+networks:
+  sre-incident-net:
+    external: true
+    name: sre-incident-net

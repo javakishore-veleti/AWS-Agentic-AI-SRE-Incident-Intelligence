@@ -1,0 +1,56 @@
+name: sre-elk
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.4
+    container_name: sre-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      cluster.name: sre-local
+    ports:
+      - "9200:9200"
+    volumes:
+      - sre-elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks:
+      - sre-incident-net
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.17.4
+    container_name: sre-logstash
+    environment:
+      LS_JAVA_OPTS: -Xms256m -Xmx256m
+    ports:
+      - "5044:5044"
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    depends_on:
+      - elasticsearch
+    networks:
+      - sre-incident-net
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.17.4
+    container_name: sre-kibana
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - sre-incident-net
+
+volumes:
+  sre-elasticsearch-data:
+
+networks:
+  sre-incident-net:
+    external: true
+    name: sre-incident-net

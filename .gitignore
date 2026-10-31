@@ -218,3 +218,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node portals
+node_modules/
+dist/
+*.local
+
+.DS_Store
+
+# Node portals
+node_modules/
+dist/
+.DS_Store

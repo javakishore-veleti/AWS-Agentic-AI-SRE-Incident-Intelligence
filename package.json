@@ -1,0 +1,9 @@
+{
+  "name": "aws-agentic-ai-sre-incident-intelligence",
+  "private": true,
+  "scripts": {
+    "local:containers:all:start": "bash CICD/Local/docker-all-up.sh",
+    "local:containers:all:stop": "bash CICD/Local/docker-all-down.sh",
+    "local:containers:all:status": "bash CICD/Local/docker-all-status.sh"
+  }
+}
