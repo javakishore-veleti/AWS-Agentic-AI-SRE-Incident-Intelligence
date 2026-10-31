@@ -29,7 +29,7 @@ public class CatalogApplication {
   }
 
   @Bean
-  RestClient inventoryClient(@Value("${clients.inventory-base-url}") String baseUrl) {
+  RestClient inventoryRestClient(@Value("${clients.inventory-base-url}") String baseUrl) {
     HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofMillis(700)).build();
     JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);
     factory.setReadTimeout(Duration.ofSeconds(2));

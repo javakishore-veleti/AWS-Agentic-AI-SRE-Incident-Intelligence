@@ -4,6 +4,15 @@
   "scripts": {
     "local:containers:all:start": "bash CICD/Local/docker-all-up.sh",
     "local:containers:all:stop": "bash CICD/Local/docker-all-down.sh",
-    "local:containers:all:status": "bash CICD/Local/docker-all-status.sh"
+    "local:containers:all:status": "bash CICD/Local/docker-all-status.sh",
+    "local:middleware:all:start": "bash CICD/Local/middleware-all-up.sh",
+    "local:middleware:all:stop": "bash CICD/Local/middleware-all-down.sh",
+    "local:middleware:all:status": "bash CICD/Local/middleware-all-status.sh",
+    "local:portals:all:start": "bash CICD/Local/portals-all-up.sh",
+    "local:portals:all:stop": "bash CICD/Local/portals-all-down.sh",
+    "local:portals:all:status": "bash CICD/Local/portals-all-status.sh",
+    "local:middleware-portals:all:start": "npm run local:middleware:all:start && npm run local:portals:all:start",
+    "local:middleware-portals:all:stop": "npm run local:portals:all:stop && npm run local:middleware:all:stop",
+    "local:middleware-portals:all:status": "npm run local:middleware:all:status && npm run local:portals:all:status"
   }
 }

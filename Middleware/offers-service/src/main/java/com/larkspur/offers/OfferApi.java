@@ -117,10 +117,12 @@ class OfferService {
     this.catalog = catalog;
   }
 
+  @Transactional(readOnly = true)
   List<OfferResponse> latest() {
     return mapAll(offers.findTop100ByOrderByCreatedAtDesc());
   }
 
+  @Transactional(readOnly = true)
   List<OfferResponse> active() {
     LocalDate today = LocalDate.now(ZoneOffset.UTC);
     return latest().stream()
@@ -130,6 +132,7 @@ class OfferService {
         .toList();
   }
 
+  @Transactional(readOnly = true)
   OfferResponse get(UUID id) {
     return mapAll(List.of(load(id))).getFirst();
   }
@@ -217,8 +220,8 @@ class CatalogClient {
   private final StringRedisTemplate redis;
   private final ObjectMapper json;
 
-  CatalogClient(RestClient catalogClient, StringRedisTemplate redis, ObjectMapper json) {
-    this.catalog = catalogClient;
+  CatalogClient(RestClient catalogRestClient, StringRedisTemplate redis, ObjectMapper json) {
+    this.catalog = catalogRestClient;
     this.redis = redis;
     this.json = json;
   }

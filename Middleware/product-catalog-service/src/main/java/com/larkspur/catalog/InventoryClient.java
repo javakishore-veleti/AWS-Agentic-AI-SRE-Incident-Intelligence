@@ -10,8 +10,8 @@ class InventoryClient {
   private static final Logger log = LoggerFactory.getLogger(InventoryClient.class);
   private final RestClient inventory;
 
-  InventoryClient(RestClient inventoryClient) {
-    this.inventory = inventoryClient;
+  InventoryClient(RestClient inventoryRestClient) {
+    this.inventory = inventoryRestClient;
   }
 
   void sync(String sku, String productName) {

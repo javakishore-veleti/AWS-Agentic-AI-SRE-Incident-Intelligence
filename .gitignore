@@ -230,3 +230,6 @@ dist/
 node_modules/
 dist/
 .DS_Store
+
+# Local process logs and copied service jars
+CICD/Local/run/
