@@ -233,3 +233,6 @@ dist/
 
 # Local process logs and copied service jars
 CICD/Local/run/
+
+# Linked worktrees for issue branches
+.worktrees/
