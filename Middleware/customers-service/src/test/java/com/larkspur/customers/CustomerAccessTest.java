@@ -23,22 +23,22 @@ class CustomerAccessTest {
   @Test
   void signupSigninAndMe() throws Exception {
     String email = "ada-" + UUID.randomUUID() + "@example.test";
-    MvcResult signup = mvc.perform(post("/api/auth/signup")
+    mvc.perform(post("/api/auth/signup")
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.signup("Ada Lovelace", email, "password12"))))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.customer.email").value(email))
-        .andExpect(jsonPath("$.token").isNotEmpty())
-        .andReturn();
-    String token = json.readTree(signup.getResponse().getContentAsString()).get("token").asText();
+        .andExpect(jsonPath("$.token").isNotEmpty());
 
-    mvc.perform(post("/api/auth/signin")
+    MvcResult signin = mvc.perform(post("/api/auth/signin")
             .contentType(MediaType.APPLICATION_JSON)
             .content("{\"email\":\"" + email + "\",\"password\":\"password12\"}"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.customer.email").value(email));
+        .andExpect(jsonPath("$.customer.email").value(email))
+        .andReturn();
+    String signinToken = json.readTree(signin.getResponse().getContentAsString()).get("token").asText();
 
-    mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
+    mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + signinToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.email").value(email));
   }
