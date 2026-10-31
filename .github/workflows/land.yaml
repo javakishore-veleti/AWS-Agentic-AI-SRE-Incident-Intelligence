@@ -25,6 +25,21 @@ jobs:
           RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           set -euo pipefail
+          promote() {
+            local body="$1"
+            local open ahead
+            open="$(gh pr list --base main --head develop --state open --json number --jq '.[0].number // empty')"
+            if [ -n "$open" ]; then
+              echo "Pull request #${open} is already open."
+              return 0
+            fi
+            ahead="$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...develop" --jq .ahead_by)"
+            if [ "$ahead" = "0" ]; then
+              echo "develop has no commits that main does not already have."
+              return 0
+            fi
+            gh pr create --base main --head develop --title "Promote develop to main" --body "$body"
+          }
           if [ "$EVENT" = "pull_request" ]; then
             number="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" --jq '.pull_requests[0].number // empty')"
             if [ -n "$number" ]; then
@@ -34,16 +49,10 @@ jobs:
                 gh pr merge "$number" --merge
               fi
               if [ "$base" = "develop" ]; then
-                open="$(gh pr list --base main --head develop --state open --json number --jq '.[0].number // empty')"
-                if [ -z "$open" ]; then
-                  gh pr create --base main --head develop --title "Promote develop to main" --body "CI passed on the pull request into develop. This pull request carries those commits to main."
-                fi
+                promote "CI passed on the pull request into develop. This pull request carries those commits to main."
               fi
             fi
           fi
           if [ "$EVENT" = "push" ] && [ "$BRANCH" = "develop" ]; then
-            open="$(gh pr list --base main --head develop --state open --json number --jq '.[0].number // empty')"
-            if [ -z "$open" ]; then
-              gh pr create --base main --head develop --title "Promote develop to main" --body "CI passed on develop."
-            fi
+            promote "CI passed on develop."
           fi
