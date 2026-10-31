@@ -9,6 +9,7 @@
 
   <modules>
     <module>service-observability</module>
+    <module>services-test-common</module>
     <module>product-catalog-service</module>
     <module>offers-service</module>
     <module>customers-service</module>
@@ -53,6 +54,11 @@
         <groupId>net.logstash.logback</groupId>
         <artifactId>logstash-logback-encoder</artifactId>
         <version>${logstash.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.github.codemonstur</groupId>
+        <artifactId>embedded-redis</artifactId>
+        <version>1.4.4</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
