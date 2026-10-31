@@ -21,6 +21,10 @@ public final class DownstreamClientOverrides implements BeanFactoryPostProcessor
       if (!registry.containsBeanDefinition(name)) {
         continue;
       }
+      Class<?> beanType = beanFactory.getType(name, false);
+      if (beanType == null || !RestClient.class.isAssignableFrom(beanType)) {
+        continue;
+      }
       registry.removeBeanDefinition(name);
       RootBeanDefinition definition = new RootBeanDefinition(RestClient.class);
       definition.setTargetType(RestClient.class);
