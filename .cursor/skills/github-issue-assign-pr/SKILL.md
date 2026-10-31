@@ -7,7 +7,7 @@ description: Use when the user runs /github-issue-assign-pr, when a GitHub issue
 
 ## Overview
 
-The Development link is a pull request into `develop` whose body has its own line `Fixes #N`, plus a comment on issue `#N`. The progress file gains one slash-table row.
+The project column **Linked pull requests** is filled by a pull request into `main` whose body has its own line `Fixes #N`. A pull request into `develop` does not fill that column. This command still puts `Fixes #N` on the develop pull request and comments on issue `#N`. The workflow "Merge pull request after CI passes" copies that line onto the pull request into `main`. The progress file gains one slash-table row.
 
 **Violating the letter of the rules is violating the spirit of the rules.**
 
@@ -34,7 +34,7 @@ gh pr edit PR --repo javakishore-veleti/AWS-Agentic-AI-SRE-Incident-Intelligence
 gh pr view PR --repo javakishore-veleti/AWS-Agentic-AI-SRE-Incident-Intelligence --json closingIssuesReferences,baseRefName,headRefName
 ```
 
-If no open pull request exists, create one with `--base develop`, `--head` the issue branch, and the same final line. Substitute the real issue number, pull request number, and branch. The view must show base `develop`, the issue branch, and issue `#N` in `closingIssuesReferences`.
+If no open pull request exists, create one with `--base develop`, `--head` the issue branch, and the same final line. Substitute the real issue number, pull request number, and branch. The view must show base `develop` and the issue branch. `closingIssuesReferences` stays empty for that pull request. The same line on the pull request into `main` is what fills `closingIssuesReferences` and the project column.
 
 Then comment:
 
@@ -55,6 +55,7 @@ The progress file receives that row only. The issue body stays the original requ
 | Excuse | Reality |
 |---|---|
 | "The body already says issue #N." | Pull request #40 mentioned issue #1. `closingIssuesReferences` was `[]`. |
+| "Fixes #N on the develop pull request fills Linked pull requests." | Pull request #53 had that line and the column stayed empty. Pull request #54 into main filled it after the same line was added. |
 | "The sidebar catches up on its own." | Issue #1's linked branch list was empty after that mention. |
 | "A comment does not create this link." | The link is the `Fixes #N` line. The comment is still required. |
 | "Record the PR on the finishing row." | That row stays. This command adds its own row. |

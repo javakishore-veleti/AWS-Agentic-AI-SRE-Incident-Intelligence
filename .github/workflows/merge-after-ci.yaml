@@ -39,11 +39,40 @@ jobs:
             echo "Pull request #${number} stayed open."
             return 1
           }
+          closing_lines() {
+            gh api "repos/${GITHUB_REPOSITORY}/compare/main...develop" --jq '.commits[].commit.message' \
+              | sed -n 's/^Merge pull request #\([0-9][0-9]*\).*/\1/p' \
+              | while read -r pr; do
+                  gh pr view "$pr" --json body --jq .body
+                done \
+              | sed -n 's/^Fixes #[0-9][0-9]*$/&/p' \
+              | awk '!seen[$0]++'
+          }
+          with_fixes() {
+            local body="$1"
+            local line
+            while IFS= read -r line; do
+              [ -z "$line" ] && continue
+              case "$body" in
+                *"$line"*) ;;
+                *) body="${body}"$'\n\n'"${line}" ;;
+              esac
+            done <<EOF
+$(closing_lines)
+EOF
+            printf '%s\n' "$body"
+          }
           merge_develop_into_main() {
             local body="$1"
-            local open ahead number
+            local open ahead number current updated
+            body="$(with_fixes "$body")"
             open="$(gh pr list --base main --head develop --state open --json number --jq '.[0].number // empty')"
             if [ -n "$open" ]; then
+              current="$(gh pr view "$open" --json body --jq .body)"
+              updated="$(with_fixes "$current")"
+              if [ "$updated" != "$current" ]; then
+                gh pr edit "$open" --body "$updated"
+              fi
               merge_pr "$open"
               return 0
             fi
