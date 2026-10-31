@@ -21,7 +21,9 @@
 - Open the repository in Cursor and verify the default branch is up to date.
 - Install/authenticate `git`, GitHub CLI (`gh`), Java 21, Node/npm, Python, Docker and relevant project tools.
 - Install Superpowers in Cursor Agent. The documented path is `/add-plugin superpowers` or the Cursor plugin marketplace. Verify the installed version and that its skills are discoverable.
+  - **31 Oct 2026.** `/add-plugin` is a Cursor chat command and was not available as a tool in this session. The marketplace plugin is still not installed, so its session-start hook does not run. The 14 Superpowers 6.3.0 skill directories were copied from the local Claude plugin cache (`~/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills`) into `.cursor/skills/` so Cursor can discover them as project skills. The MIT license is `.cursor/skills/SUPERPOWERS-LICENSE.txt`. Each copied directory contains `SKILL.md`. A new agent session is required before this session's skill list includes them.
 - Put project-specific `SKILL.md` entrypoints in a Cursor-discoverable directory, ordinarily `.cursor/skills/<name>/SKILL.md`. If retaining `.github/cursor/skills/`, explicitly link or copy them into `.cursor/skills/`; do not assume Cursor discovers an arbitrary directory automatically.
+  - **31 Oct 2026.** The nine skills under `.github/cursor/skills/` were kept in place and linked with relative symlinks: `.cursor/skills/<name>` → `../../.github/cursor/skills/<name>`. `agentic-ai-architecture/SKILL.md` resolves through the link. Together with the Superpowers copies, `.cursor/skills` contains 23 `SKILL.md` files.
 - Confirm that `CURRENT_STATE_AND_GAPS.md`, `SUPERPOWERS_ADOPTION.md`, this operating model, `README.md`, `CLAUDE.md`, and architecture documents exist where referenced; if absent, note the gap instead of inventing content.
 - Confirm native GitHub milestones M1–M8 and labels exist. Issue titles and description text are **not** substitutes for GitHub milestone assignments.
 
@@ -41,6 +43,8 @@ If milestones do not exist, create them through GitHub UI or an authenticated `g
 ### 2.3 Configure issue board
 
 Use GitHub Project statuses: **Backlog → Ready → In Progress → In Review → Done**, plus **Blocked**. Filter by native milestone and `priority:P0/P1/P2`, category labels, and dependencies. Keep one issue in progress per coding worktree unless concurrency is deliberate.
+
+**31 Oct 2026 — done.** The first `gh` token had `gist`, `read:org`, `repo`, and `workflow` only. `gh project list` and a `projectV2` query returned `INSUFFICIENT_SCOPES`. `gh auth refresh -h github.com -s project,read:project` completed after the device login, and `gh auth status` then showed the `project` scope. Created user project 7, [SRE Incident Intelligence](https://github.com/users/javakishore-veleti/projects/7) (`PVT_kwHOAFyDNM4BpnmP`), and linked it to this repository. Replaced the default Status options with Backlog, Ready, In Progress, In Review, Done, and Blocked. Added all 38 open issues and set each status to Backlog. `gh project item-list` returned 38 items, every one Backlog. Created the missing `priority:P2` label so the board filter in this section exists. No open issue uses P2 yet.
 
 ## 3. Standard issue lifecycle — exact steps in Cursor
 

@@ -1,0 +1,1 @@
+Superpowers skills in this directory were copied from obra/superpowers 6.3.0 so Cursor can discover them as project skills. The license is SUPERPOWERS-LICENSE.txt. The nine Heddle skills are symlinks to ../../.github/cursor/skills/.
