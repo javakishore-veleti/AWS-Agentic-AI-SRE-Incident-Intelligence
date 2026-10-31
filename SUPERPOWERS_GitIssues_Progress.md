@@ -17,6 +17,11 @@
 
 ### APP-001
 
-| Chat command | Issues | Started | Completed | Pull request |
+| Slash command | Issues | Started | Completed | Pull request |
 |---|---|---|---|---|
-| Use Superpowers on #1. Brainstorm, write the plan, use a worktree, verify local startup and shutdown, and open the pull request. | [#1 APP-001](https://github.com/javakishore-veleti/AWS-Agentic-AI-SRE-Incident-Intelligence/issues/1) | | | |
+| `/brainstorming #1 APP-001` | [#1 APP-001](https://github.com/javakishore-veleti/AWS-Agentic-AI-SRE-Incident-Intelligence/issues/1) | 2026-10-31 14:15 | 2026-10-31 14:17 | |
+| `/using-git-worktrees #1 APP-001` | [#1 APP-001](https://github.com/javakishore-veleti/AWS-Agentic-AI-SRE-Incident-Intelligence/issues/1) | 2026-10-31 14:17 | | |
+| `/writing-plans #1 APP-001` | [#1 APP-001](https://github.com/javakishore-veleti/AWS-Agentic-AI-SRE-Incident-Intelligence/issues/1) | | | |
+| `/executing-plans #1 APP-001` | [#1 APP-001](https://github.com/javakishore-veleti/AWS-Agentic-AI-SRE-Incident-Intelligence/issues/1) | | | |
+| `/verification-before-completion #1 APP-001` | [#1 APP-001](https://github.com/javakishore-veleti/AWS-Agentic-AI-SRE-Incident-Intelligence/issues/1) | | | |
+| `/finishing-a-development-branch #1 APP-001` | [#1 APP-001](https://github.com/javakishore-veleti/AWS-Agentic-AI-SRE-Incident-Intelligence/issues/1) | | | |
