@@ -1,7 +1,7 @@
 # Superpowers + GitHub Issues — Cursor Operating Model
 
 **Repository:** `javakishore-veleti/AWS-Agentic-AI-SRE-Incident-Intelligence`  
-**Purpose:** Execute GitHub issues and milestone outcomes using Superpowers as the engineering methodology, Cursor as the daily control center, Claude Code as the default implementer, and Codex as an independent reviewer where appropriate.  
+**Purpose:** Execute GitHub issues and milestone outcomes using Superpowers as the engineering methodology and Cursor as the only coding environment for now. Claude Code is out of this phase.  
 **Status:** Operating procedure; no issue, deployment, test, or milestone is considered complete solely because an AI agent says so.
 
 ## 1. Operating principles
@@ -9,7 +9,7 @@
 1. **GitHub issue is the unit of scope.** Each change maps to one issue or a documented, dependency-aware batch; every PR references the issues it addresses.
 2. **Milestone is the unit of delivery.** Milestone closure requires working software, evidence, and a documented gate—not just closed issue counts.
 3. **Superpowers is the method, not a model.** Use its brainstorming, planning, worktrees, TDD, systematic debugging, subagent execution, code review, and verification skills in the coding environment where work happens.
-4. **Cursor is the control center.** Review issues, inspect code and diffs, invoke Cursor Agent or its terminal, monitor tests, review PRs, and record evidence. Claude Code CLI and Codex CLI can be run in Cursor's terminal if installed.
+4. **Cursor is the control center and the implementer.** Review issues, inspect code and diffs, invoke Cursor Agent, monitor tests, review PRs, and record evidence. Do not hand implementation to Claude Code during this phase.
 5. **Human approves architecture, external side effects, and merges.** Never auto-deploy, destroy, change production secrets, or execute remediation merely because an issue says to.
 6. **Evidence before status.** Capture commands, tests, logs, PR links, CloudFormation stack events, and model evaluation artifacts; distinguish observed from simulated evidence.
 7. **Small batches, clean branches.** Prefer one issue per PR. Batch 2–3 tightly related issues only when tests and rollback boundaries remain clear.
@@ -20,7 +20,7 @@
 
 - Open the repository in Cursor and verify the default branch is up to date.
 - Install/authenticate `git`, GitHub CLI (`gh`), Java 21, Node/npm, Python, Docker and relevant project tools.
-- Install Superpowers separately in the coding harness(es) you intend to use. In Cursor Agent, its documented installation path is `/add-plugin superpowers` or the Cursor plugin marketplace; in Claude Code or Codex, use the respective plugin marketplace. Verify the installed version and that its skills are discoverable.
+- Install Superpowers in Cursor Agent. The documented path is `/add-plugin superpowers` or the Cursor plugin marketplace. Verify the installed version and that its skills are discoverable.
 - Put project-specific `SKILL.md` entrypoints in a Cursor-discoverable directory, ordinarily `.cursor/skills/<name>/SKILL.md`. If retaining `.github/cursor/skills/`, explicitly link or copy them into `.cursor/skills/`; do not assume Cursor discovers an arbitrary directory automatically.
 - Confirm that `CURRENT_STATE_AND_GAPS.md`, `SUPERPOWERS_ADOPTION.md`, this operating model, `README.md`, `CLAUDE.md`, and architecture documents exist where referenced; if absent, note the gap instead of inventing content.
 - Confirm native GitHub milestones M1–M8 and labels exist. Issue titles and description text are **not** substitutes for GitHub milestone assignments.
@@ -92,16 +92,16 @@ Choose the coding executor:
 
 | Issue type | Primary | Review |
 |---|---|---|
-| Java, integrations, LangGraph, telemetry, SRE, AWS | Claude Code CLI + Superpowers | Codex for high-risk changes |
-| React/UI | Cursor Agent + Superpowers | Claude Code integration checks |
-| Multi-model evaluation and independent test harness | Codex + Superpowers | Claude Code checks integration |
+| Java, integrations, LangGraph, telemetry, SRE, AWS | Cursor Agent + Superpowers | Cursor review; human approval for high-risk changes |
+| React/UI | Cursor Agent + Superpowers | Cursor review |
+| Multi-model evaluation and independent test harness | Cursor Agent + Superpowers | Cursor review |
 | Small docs/config changes | Cursor Agent + Superpowers | Lightweight review |
 
 Use `subagent-driven-development` or `executing-plans` depending on issue complexity. Apply `test-driven-development` where meaningful: reproduce failure, write failing test, implement minimum fix, refactor. Do not use autonomous subagents for unrestricted cloud operations.
 
 ### Step 6 — Validate and review
 
-Run applicable tests **in the worktree**. Include unit, integration, security, smoke, schema, lint, workflow syntax, CloudFormation validation, or controlled incident tests as relevant. Use Superpowers `systematic-debugging` on failures and `verification-before-completion` before claiming success. Request Superpowers code review; for security/AWS/destructive workflows, also run independent Codex review.
+Run applicable tests **in the worktree**. Include unit, integration, security, smoke, schema, lint, workflow syntax, CloudFormation validation, or controlled incident tests as relevant. Use Superpowers `systematic-debugging` on failures and `verification-before-completion` before claiming success. Request Superpowers code review in Cursor. For security, AWS, and destructive workflows, the human approval gate still applies.
 
 Collect an evidence table:
 
@@ -250,7 +250,7 @@ The issue numbers below are **GitHub issue numbers**, not the stable category ID
 2. From Cursor terminal, pull `main`, run milestone-level regression/smoke commands, and save real results.
 3. Review cross-issue integration, open defects, security exceptions, and known limitations.
 4. Create `docs/milestones/M<NUMBER>-completion.md` with outcome, issue/PR links, test commands, observed evidence, architecture decisions, unresolved risks and sign-off.
-5. Ask Codex for an independent milestone review if it includes security, AI reasoning, or AWS infrastructure.
+5. Review the milestone in Cursor when it includes security, AI reasoning, or AWS infrastructure, then obtain human acceptance.
 6. Obtain human acceptance. Close the native milestone in GitHub UI or authorized CLI/API operation.
 7. Record learning outcomes in the Superpowers adoption metrics and update resume claims **only for implemented, demonstrated capabilities**.
 

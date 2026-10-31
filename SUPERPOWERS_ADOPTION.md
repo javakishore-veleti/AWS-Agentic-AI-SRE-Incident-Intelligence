@@ -11,15 +11,11 @@ Your `AWS-Agentic-AI-SRE-Incident-Intelligence` repository is an excellent oppor
 ```mermaid
 flowchart TD
   S[Superpowers — Engineering methodology<br/>Design · Planning · TDD · Subagents · Review · Verification]
-  S --> C[Claude Code — Primary implementation]
-  S --> X[Codex — Independent validation]
-  S --> U[Cursor — Development and UI]
-  C --> G[38 GitHub Issues → Tested PRs → Measurable Outcomes]
-  X --> G
-  U --> G
+  S --> U[Cursor — Design, implementation, UI, review, and verification]
+  U --> G[38 GitHub Issues → Tested PRs → Measurable Outcomes]
 ```
 
-Instead of simply asking Claude Code to implement an issue, use Superpowers to guide the entire lifecycle.
+Use Superpowers inside Cursor for the whole lifecycle. Claude Code and Codex are later options. They are not part of the current execution path.
 
 ## 2. Superpowers mastery plan
 
@@ -73,7 +69,7 @@ Once you've implemented and verified meaningful portions of the repository, you 
 
 ### Agentic AI SRE Incident Intelligence — Chief Architect / Independent Engineering Project
 
-**Technologies:** Superpowers, Claude Code, OpenAI Codex, Cursor, LangGraph, Java 21, Spring Boot, Python, React, AWS EKS, CloudFormation, GitHub Actions, Prometheus, Elasticsearch, Jaeger.
+**Technologies:** Superpowers, Cursor, LangGraph, Java 21, Spring Boot, Python, React, AWS EKS, CloudFormation, GitHub Actions, Prometheus, Elasticsearch, Jaeger.
 
 - Architected an AI-driven SRE incident intelligence platform integrating microservices, distributed observability, LangGraph-based investigation workflows, and evidence-backed root-cause analysis.
 - Applied the **Superpowers AI-assisted software engineering methodology** across architecture design, implementation planning, test-driven development, subagent orchestration, code review, and verification.
@@ -84,11 +80,9 @@ Once you've implemented and verified meaningful portions of the repository, you 
 
 ## 5. What I recommend doing now
 
-Start with **APP-001 using Claude Code CLI + Superpowers**. Let Superpowers handle brainstorming, planning, worktree setup, implementation, tests, review, and verification.
+Start with **APP-001 in Cursor Agent + Superpowers**. Let Superpowers handle brainstorming, planning, worktree setup, implementation, tests, review, and verification.
 
-For your next issue, use **Codex + Superpowers** so you experience the same methodology in a different coding environment. Then use Cursor + Superpowers for a UI-oriented issue.
-
-That will give you practical experience across all three environments while keeping Superpowers as the consistent engineering framework.
+Stay in Cursor for the issues that follow, including Java services, LangGraph, telemetry, incident work, AWS, and the portals. Claude Code is out of this phase.
 
 **Your ultimate resume story should be:** *I architected and delivered an agentic AI SRE platform using a repeatable, skills-driven AI engineering methodology, with test-first implementation, independent reviews, measurable incident evaluations, and controlled AWS infrastructure lifecycle management.*
 
