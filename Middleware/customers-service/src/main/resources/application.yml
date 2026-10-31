@@ -1,0 +1,35 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: customers-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/customers
+    username: sre
+    password: sre_local_password
+    hikari:
+      maximum-pool-size: ${HIKARI_MAX_POOL:10}
+      pool-name: customers-pool
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate.jdbc.time_zone: UTC
+
+security:
+  jwt:
+    secret: local-dev-sre-incident-intelligence-jwt-secret-key
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
