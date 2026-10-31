@@ -1,68 +1,104 @@
-# Architecture — AWS Agentic AI SRE Incident Intelligence
+# Architecture
 
-## Architecture decisions
-1. **Two independent frontends:** `Portals/agentic-ai-admin` and `Portals/ecommerce-portal` (React + TypeScript recommended). Use a shared design token package only if it materially reduces duplication.
-2. **Domain-oriented Java Spring Boot APIs** under `Middleware/`: Product Catalog, Offers, Customers/Identity, Orders/Checkout, Inventory, optional gateway. Each service owns its schema and migrations. Use REST and explicit contracts; asynchronous events only where justified.
-3. **SRE agents** under `Middleware/agents`: LangGraph orchestrates bounded, read-only evidence collection, hypothesis testing and structured reporting. Python is acceptable for LangGraph while commerce APIs remain Java 21.
-4. **Local platform** under `CICD/Local/`: independent PostgreSQL, Redis, Prometheus and ELK Compose projects. Local scripts start/stop/report them in dependency-aware order. Applications may be added in a separate Compose project later.
-5. **AWS target:** EKS for services/agents, RDS PostgreSQL, CloudWatch, OpenTelemetry collector, IAM least privilege. Local ELK/Prometheus are development observability; AWS integrations must be validated separately.
+This file records how Heddle is structured and which contracts exist today. Product behavior is in [DESIGN.md](DESIGN.md). Agent working rules, the incident report contract, and experiments INC-001 through INC-004 are in [CLAUDE.md](CLAUDE.md).
 
-## Logical request and telemetry flows
+## In the tree
+
+1. **Two React and TypeScript portals** call the Java services directly. `Portals/agentic-ai-admin` uses Vite on port 5173. `Portals/ecommerce-portal` uses Vite on port 5174. There is no API gateway or BFF.
+2. **Five Java 21 Spring Boot services** live under `Middleware/`. Each one owns a PostgreSQL database, uses HikariCP (`HIKARI_MAX_POOL`, default 10), and updates schema with Hibernate `ddl-auto: update`. There are no Flyway or Liquibase migrations in the tree.
+3. **The investigation agent** is `Middleware/investigation-agent` (FastAPI, LangGraph, Uvicorn). `Middleware/agents` is not a folder. Use that name only if a future task creates it, and label the path as future.
+4. **Local dependencies** are independent Compose projects in `CICD/Local/Postgres`, `Redis`, `Prometheus`, and `ELK`. Root npm scripts call `docker-all-up.sh`, `docker-all-down.sh`, and `docker-all-status.sh`.
+5. **AWS** (EKS, RDS, CloudWatch, least-privilege IAM) is a later deployment target. Nothing in this repository provisions it.
+
+| Service | Port | Database |
+|---|---|---|
+| `product-catalog-service` | 8081 | `product_catalog` |
+| `offers-service` | 8082 | `offers` |
+| `customers-service` | 8083 | `customers` |
+| `orders-service` | 8084 | `orders` |
+| `inventory-service` | 8085 | `inventory` |
+
+Postgres 16 listens on `localhost:5432`. The init script creates `offers`, `customers`, `orders`, and `inventory`; the Compose `POSTGRES_DB` is `product_catalog`. Redis 7.4 listens on `localhost:6379`. Offers uses it as a 60-second cache of catalog products (`catalog:product:{id}`). Redis is not a system of record. Java packages are `com.larkspur`.
+
+Local database and JWT defaults are in the Compose files and `application.yml`. Do not copy them into new documents or production configuration. A root `.env.example` is not in the tree.
+
+## Request flow today
+
 ```mermaid
 flowchart LR
-  Customer[Customer Portal] --> Gateway[API Gateway / BFF]
-  Admin[Admin Portal] --> Gateway
-  Gateway --> Products[Product API]
-  Gateway --> Offers[Offer API]
-  Gateway --> Identity[Customer / Identity API]
-  Gateway --> Orders[Order / Checkout API]
-  Orders --> Inventory[Inventory API]
-  Offers --> Products
+  Shop[ecommerce-portal :5174] --> Customers[customers-service :8083]
+  Shop --> Offers[offers-service :8082]
+  Shop --> Orders[orders-service :8084]
+  Desk[agentic-ai-admin :5173] --> Catalog[product-catalog-service :8081]
+  Desk --> Offers
+  Desk --> Customers
+  Desk --> Orders
   Orders --> Offers
-  Services[Instrumented Services] --> OTel[OpenTelemetry Collector]
-  OTel --> Prom[Prometheus]
-  OTel --> ELK[ELK Logs]
-  OTel --> Traces[Queryable Trace Backend]
-  Agent[LangGraph SRE Investigation] --> ReadOnly[Authorized Read-only Tools]
-  ReadOnly --> Prom
-  ReadOnly --> ELK
-  ReadOnly --> Traces
-  ReadOnly --> K8s[Kubernetes Events / Changes]
+  Orders --> Inventory[inventory-service :8085]
+  Offers --> Catalog
+  Offers --> Redis[Redis]
+  Agent[investigation-agent] --> Health[Actuator health]
 ```
 
-`Services` represents the instrumented APIs above; diagram arrows indicate logical calls, not direct database access. Traces require an actual queryable backend (e.g. Tempo/Jaeger), not Prometheus alone. Integrate one before claiming distributed trace querying works.
+Purchase is the only order create path. `POST /api/orders` requires `Authorization: Bearer <token>`. The token is a JWT from `POST /api/auth/signup` or `POST /api/auth/signin`. The body is `{ "offerId" }`. Orders loads the offer, rejects a non-`ACTIVE` offer or an offer with no products, copies customer identity from the token, sets `totalAmount` from `offerPrice`, snapshots each product as a line with quantity 1, and saves the row with an `HD-` order number and status `PLACED`. It then calls `POST /api/reservations`. If reservation fails, it deletes that new row and returns an error. A second purchase creates a second order. There is no idempotency key and no payment call.
 
-## API contracts (initial)
-| Service | API | Auth/notes |
-|---|---|---|
-| Products | `GET /api/products?query=&sku=&category=&status=&limit=100`, `POST`, `GET /{id}`, `PATCH /{id}`, `DELETE /{id}` | Admin writes; customer-safe reads |
-| Offers | `GET /api/offers?query=&productId=&status=&limit=100`, `POST`, `GET /{id}`, `PATCH /{id}`, `DELETE /{id}` | Admin writes; public/customer active offers read; product association required |
-| Customers | `POST /api/auth/signup`, `POST /api/auth/signin`, `GET /api/customers`, `GET/PATCH/DELETE /api/customers/{id}` | Secure auth; admin management; self access scoped |
-| Orders | `POST /api/checkout`, `GET /api/orders`, `GET /api/orders/{id}`, `PATCH /api/orders/{id}`, `DELETE /api/orders/{id}` | Checkout is customer-only create path; admin cannot POST order; cancellation/soft-delete preferred |
-| Inventory | `GET /api/inventory/{productId}`, internal reserve/release endpoints | Internal service authorization |
+Desk writes do not send a bearer token. `GET /api/orders` is also unauthenticated and returns the latest 100 orders. `GET /api/orders/mine` is the shopper's scoped read.
 
-API details are **proposed contracts** until implemented and verified. All list endpoints filter server-side then sort `createdAt DESC, id DESC` and limit to 100. Frontend paginates the returned 100 client-side. For orders: `createdFrom` inclusive and `createdToExclusive` exclusive in UTC ISO 8601; UI translates date selection using a documented timezone. Validate limits, fields, ownership and allowed status transitions server-side.
+## HTTP contracts today
 
-## Checkout correctness
-Validate authenticated identity, offer active/valid, product status, quantity and inventory; calculate prices on server; snapshot item details; use idempotency key and a transactional state machine. For multi-service coordination, define compensation/retry behavior; do not claim exactly-once execution. Payment is a labeled sandbox simulation unless a compliant payment provider is separately integrated. Emit trace correlation IDs across all service hops.
+List routes below return the latest 100 rows and ignore filter query parameters. `/api/offers/active` is the exception inside that limit: from those latest 100 it keeps `ACTIVE` offers whose `startsOn` is null or on or before today UTC, and whose `endsOn` is null or on or after today UTC. Updates use `PUT`. Deletes call `deleteById`.
 
-## Observability and fault injection
-- OpenTelemetry Java instrumentation: HTTP inbound/outbound, JDBC, custom HikariCP pool gauges and meaningful business spans.
-- Logs: structured JSON with trace ID, span ID, service name, error code and safe contextual metadata. Never log credentials, session tokens or sensitive customer details.
-- Metrics: request rate, error rate, p95/p99 latency, JVM, CPU, HikariCP active/idle/pending, downstream latency and checkout failures.
-- Controlled faults: connection pool reduced under load; Inventory response delay; invalid service endpoint; business-level failure with healthy pods.
-- Every fault needs injection, ground truth, evidence, rollback and baseline recovery validation.
+| Service | Routes |
+|---|---|
+| Catalog | `GET /api/products`, `GET /api/products/lookup?ids=`, `GET /api/products/{id}`, `POST /api/products`, `PUT /api/products/{id}`, `DELETE /api/products/{id}` |
+| Offers | `GET /api/offers`, `GET /api/offers/active`, `GET /api/offers/{id}`, `POST /api/offers`, `PUT /api/offers/{id}`, `DELETE /api/offers/{id}` |
+| Customers | `GET /api/customers`, `GET /api/customers/{id}`, `POST /api/customers`, `PUT /api/customers/{id}`, `DELETE /api/customers/{id}`, `POST /api/auth/signup`, `POST /api/auth/signin`, `GET /api/auth/me` |
+| Orders | `GET /api/orders`, `GET /api/orders/mine`, `GET /api/orders/{id}`, `POST /api/orders`, `PUT /api/orders/{id}`, `DELETE /api/orders/{id}` |
+| Inventory | `GET /api/stock`, `PUT /api/stock/{sku}`, `POST /api/reservations` |
 
-## AI investigation contract
-Inputs: incident ID, affected service(s), time window and permitted tool scope. Tools: `query_logs`, `query_metrics`, `query_traces`, `get_kubernetes_events`, `get_deployment_history`. Outputs: evidence IDs/links, competing hypotheses, supporting/refuting signals, confidence with limitations, proposed diagnosis and non-executing remediation advice. Apply tool budgets, timeouts, least privilege, audit logs, PII redaction and prompt-injection resistance. Human approval is mandatory for mutations.
+Offer writes require a non-empty `productIds` list. The service checks those ids with the catalog and rejects duplicates. Responses include `productIds` and product summaries. Sort for catalog, offers, and customers is `createdAt` descending. Orders sort by `placedAt` descending. Stock sorts by `updatedAt` descending and is keyed by SKU.
 
-## Local developer operations
-`npm run local:containers:all:start`, `npm run local:containers:all:status`, `npm run local:containers:all:stop`. Each stack lives in `CICD/Local/<Name>/docker-compose.yaml`; scripts rely on Docker Compose v2 and an optional `CICD/Local/.env` (copy from `.env.example`). Default ports are for local development and may conflict with other processes. Local container startup does **not** mean application APIs or portals are implemented or running.
+`PUT /api/orders/{id}` accepts `status` and `note`. `POST /api/reservations` accepts `orderRef` and `lines` of `{ sku, qty }`. Inventory sleeps for `FAULT_DELAY_MS` milliseconds before reserving when that value is greater than zero. The default is `0`.
 
-## Delivery gates
-1. Compose validation and healthy local dependencies.
-2. Working product/offer/customer/order/inventory APIs with migrations and tests.
-3. Both portals integrated with real APIs and correct authorization.
-4. Traces/logs/metrics verified from real checkout traffic.
-5. Fault injection + diagnosis and measured model comparisons.
-6. AWS deployment and cleanup tested separately, with cost controls.
+Passwords are bcrypt hashed. `GET /api/auth/me` requires the bearer token.
+
+The investigation agent exposes `GET /health`, `GET /api/services`, and `POST /api/investigations` with `{ "service" }`. The graph probes `GET /actuator/health` on the five services and returns `service`, `signals`, `facts`, `hypotheses`, and `recommendations`. The module does not pin a listen port. It does not mutate services.
+
+## Target contract
+
+Still to build. Do not document these as present:
+
+- An API gateway in front of the five services.
+- Server-side filters applied before the 100-row limit, then browser pagination of that bounded result. Order ranges use `placedAt`, inclusive start, exclusive end, in a documented timezone. DESIGN.md states the current inclusive local-day behavior.
+- Order cancellation that retains the row and records an audit trail. Keep using `PUT` for updates unless a task changes the verb.
+- An idempotency key on purchase, and a payment step labeled as a simulation until a real provider is approved.
+- Authorization on desk writes and on `GET /api/orders`, so a shopper token cannot read another customer's orders.
+- Versioned migrations in place of `ddl-auto: update`.
+- OpenTelemetry across the purchase path, with a queryable trace backend. Prometheus alone is not that backend.
+- Read-only investigation tools `query_logs`, `query_metrics`, `query_traces`, `get_kubernetes_events`, and `get_deployment_history`, returning the report contract in CLAUDE.md.
+- A root `.env.example` that lists local ports and placeholders. The Compose files remain the source for the ports below until that file exists.
+- Amazon EKS, RDS, CloudWatch, and least-privilege IAM, validated separately from local Compose.
+
+## Observability today
+
+Each Java service exposes Actuator `health`, `info`, `prometheus`, and `metrics`. `CICD/Local/Prometheus/prometheus.yml` scrapes `host.docker.internal:8081` through `8085` at `/actuator/prometheus`.
+
+The ELK Compose project publishes Elasticsearch on `localhost:9200`, Kibana on `localhost:5601`, and Logstash TCP on `localhost:5044`. Service `logback-spring.xml` files send JSON to that Logstash address only when the `elk` Spring profile is active. The default profile logs a plain console pattern.
+
+There is no OpenTelemetry dependency or collector in the tree. The investigation agent does not query Prometheus or Elasticsearch.
+
+## Local operations
+
+```bash
+npm run local:containers:all:start
+npm run local:containers:all:status
+npm run local:containers:all:stop
+```
+
+`docker-all-up.sh` creates the external network `sre-incident-net` when it is missing, then starts Postgres, Redis, Prometheus, and ELK with Docker Compose v2. `docker-all-up.sh` and `docker-all-down.sh` use `set -euo pipefail` and fail if Docker or Compose is missing. `docker-all-status.sh` prints each stack and continues when a stack is down. Starting the containers does not start the Java processes, the agent, or the portals.
+
+Default published ports: Postgres `5432`, Redis `6379`, Prometheus `9090`, Elasticsearch `9200`, Kibana `5601`, Logstash TCP `5044`.
+
+## Delivery gaps
+
+The commerce path and the health-only agent are in the tree. Still open: server-side filtered lists, desk and order-list authorization, order soft cancellation, idempotent purchase, a labeled payment simulation, trace instrumentation, investigation tools beyond health, k6, and any AWS deployment. Claim a gap closed only after the code and a run show it.

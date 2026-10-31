@@ -1,48 +1,74 @@
-# Product Design — AWS Agentic AI SRE Incident Intelligence
+# Product design
 
-## Purpose
-Build a credible, working e-commerce system whose microservices produce realistic telemetry and controlled incidents for an Agentic AI SRE investigation platform. The two portals must be useful as applications in their own right; the SRE workflow must diagnose real failures, not scripted answers.
+Heddle is the commerce system this lab investigates. The desk and the shop must work as applications. Incident rules, evidence requirements, and the investigation report contract are in [CLAUDE.md](CLAUDE.md). Endpoints and service ownership are in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## Personas and workflows
-**Admin:** Manage Product Catalog, Offers (each tied to a product), Customers and Orders. Orders originate exclusively from customer checkout. Admin can inspect, update allowed order fields/statuses, and cancel/soft-delete with audit history; cannot create orders.
+The customer-facing name is Heddle. Sample rows use `heddle.example` mail, SKU prefix `HED`, and order numbers that start with `HD-`. Java packages remain `com.larkspur`.
 
-**Customer:** Register, authenticate, search active offers and see the underlying product, select an offer, complete simulated checkout, and view only their own orders.
+## Personas
 
-**SRE:** Inspect a real incident, evidence, telemetry, hypotheses, diagnosis and human-reviewed recovery recommendations. Never expose raw production-changing controls to the agent.
+**Shopper.** Register, sign in, browse active offers and the products in each offer, purchase one offer, and review their own orders.
 
-## Admin navigation and screens
-| Menu | Operations | Search/filter | Default listing |
-|---|---|---|---|
-| Product Catalog | Create, read, update, delete/archive | Name, SKU, category, status | Newest 100 matching |
-| Offers | Create, read, update, delete/deactivate; map to product | Offer name, product/SKU, status, validity | Newest 100 matching |
-| Customers | Create, read, update, deactivate/delete subject to retention | Name, email, status | Newest 100 matching |
-| Orders | Read, update allowed status, cancel/soft-delete | Order ID, customer, status, created-from/to dates | Newest 100 matching |
-| SRE Incidents (later) | Read investigations and evidence | Service, severity, state, time | Newest 100 matching |
+**Desk operator.** Maintain the catalog, offers, and customers. Inspect orders, change status and note, and remove a row with the current hard delete. The desk does not create orders.
 
-**List semantics:** Every filter change requests up to 100 matching rows from the API ordered by `createdAt DESC, id DESC`. Client-side pagination applies **only to those 100 rows** (e.g. 10/20/25 per page). UI must say “Showing X of the latest 100 matching records” and never imply there are only 100 globally. Backend validates filter input and applies filters *before* the limit. Server-side pagination is a future enhancement for full history. Use ISO 8601 timestamps; orders date range uses `createdAt >= from` and `createdAt < toExclusive`, converted from selected local calendar dates in a documented timezone. Search must be debounced, resettable, accessible and reflected in the URL where appropriate.
+**SRE.** Investigate a real incident from evidence. The agent recommends; a person approves any change. The desk has no incidents screen yet. That screen is a later section, separate from commerce.
 
-## Customer portal
-- Sign up with validated name, email and password; securely hash password on server.
-- Sign in with secure session/token handling, rate limiting and appropriate logout/expiry.
-- Browse searchable active offers, displaying product title, description, image, availability, offer price, validity and terms.
-- Checkout uses authenticated customer identity, server-calculated pricing, inventory validation/reservation and an idempotency key. A simulated payment is explicitly marked as such.
-- Order creation happens in the Order API only as a consequence of customer checkout. Snapshot purchased offer/product names, prices and quantities; provide order confirmation and order history.
-- Never allow users to access another customer's data by changing request parameters.
+## What the shop does today
 
-## Design system — professional, not academic
-- **Light, premium enterprise look**: ivory `#FCFBF7` canvas, white `#FFFFFF` surfaces, deep navy `#142B4A` text, azure `#1769AA` primary, teal `#087F78` success/action accent, amber `#D99226` attention. No gray/black-dominant UI; neutral borders are permitted for clarity.
-- Desktop: clean left navigation in admin, top utility bar, informative page headers, aligned filters and dense but readable data tables. Mobile: collapsible navigation and responsive cards/tables.
-- E-commerce: polished product imagery, clear offer pricing and checkout progress; consistent brand with admin but distinct shopper navigation.
-- Typography: modern system font or licensed web-safe equivalent; accessible focus indicators, semantic labels, AA contrast, keyboard navigation.
-- Every screen: skeleton/loading, error/retry, empty/no-results, success confirmation, destructive-action confirmation, validation messages and toast feedback.
-- No fabricated KPIs, fake orders or decorative data in connected views. Seed data must be labeled as sample data.
+Routes in `Portals/ecommerce-portal` (Vite on port 5174): `/offers`, `/offers/:id`, `/orders`, `/signin`, `/signup`.
 
-## Core data concepts
-- **Product**: id, sku (unique), name, description, category, price/basePrice, currency, status, createdAt, updatedAt.
-- **Offer**: id, productId (required), title, offerPrice, currency, validFrom, validUntil, status, createdAt, updatedAt. Validate product exists and price/validity rules.
-- **Customer**: id, name, email (unique), passwordHash or external identity reference, status, createdAt, updatedAt. Never expose passwordHash.
-- **Order**: id, customerId, status, total, currency, createdAt, updatedAt, immutable purchased item snapshots and audit trail. Checkout creates; admin can perform only permitted transitions.
-- **Inventory**: productId, available/reserved quantities, version; prevent oversell with atomic operations.
+- Sign up and sign in call the customers service. The shop stores the returned token in `localStorage` under `heddle.session`.
+- The offer list loads `GET /api/offers/active`, then filters by offer name, product name, and maximum price in the browser.
+- Offer detail shows the offer and its products. Purchase sends `POST /api/orders` with `Authorization: Bearer <token>` and `{ "offerId" }`. The client does not send a price, a customer id, or a quantity.
+- Order history loads `GET /api/orders/mine` with the same bearer token. Date filters compare `placedAt` to the browser's local calendar day. Both the from day and the to day are inclusive. Pagination is client-side.
 
-## Definition of done
-A real user can sign up, sign in, search offers, purchase using the clearly marked test checkout, see their order, and an admin can inspect/update that order without being able to create one. All admin lists support the latest-100 filtered/paginated contract. A controlled service fault appears in observability and is investigated using actual evidence. Automated tests cover auth, data ownership, validation, purchase idempotency, status transitions, filters, date boundaries, and telemetry correlation.
+There is no payment step and no idempotency key. Submitting purchase again creates another order.
+
+## What the desk does today
+
+Routes in `Portals/agentic-ai-admin` (Vite on port 5173): `/overview`, `/products`, `/offers`, `/customers`, `/orders`.
+
+| Screen | Writes | How the list works |
+|---|---|---|
+| Product catalog | Create, update, hard delete | `GET /api/products`, then browser filters and pages |
+| Offers | Create, update, hard delete. The form requires one or more existing products (`productIds`) | `GET /api/offers`, then browser filters and pages |
+| Customers | Create, update, hard delete | `GET /api/customers`, then browser filters and pages |
+| Orders | Update status and note. Hard delete. No create action | `GET /api/orders`, then browser filters and pages |
+
+Order filters include customer name, email, offer name, status, and a from/to range on `placedAt`. The range uses the local calendar day and includes both ends. The screens do not send those criteria to the API.
+
+Empty, error, and confirmation states exist on the current forms. Result copy counts the filtered browser list. It does not mean the API applied the filter.
+
+## Target behavior
+
+These behaviors are the product contract. They are not what the screens do today.
+
+- List APIs accept the filters, apply them, sort newest first, and return at most 100 matches. The browser paginates only that bounded set. Copy should say how many of those latest 100 matches are on screen. That is not global pagination. A later server-side page parameter can cover older history.
+- Order dates filter on `placedAt`. Document the timezone. The start instant is inclusive and the end instant is exclusive (`placedAt >= from` and `placedAt < toExclusive`).
+- Search is debounced, resettable, keyboard accessible, and reflected in the URL where that helps the operator return to the same view.
+- Order removal becomes cancellation with an audit trail. Keep the financial record. `CANCELLED` already exists as a status; the current `DELETE` still erases the row.
+- Checkout stays authenticated. The server continues to own identity and price. Add an idempotency key so a repeated purchase does not create a second order. Add a payment step only as a clearly labeled simulated test integration until a real provider is approved.
+- A shopper can read only their own orders on every order read they can call.
+- Offers stay sets of products. Reject a save that references a missing product.
+- An incidents view can join the desk later. It shows investigations and evidence. It does not invent metrics.
+
+## Design system
+
+One brand, two visual states. The target palette is the next UI pass. The spruce and coral treatment is what the portals render now. Do not describe the current sidebar as navy or the current actions as azure.
+
+**Target.** Ivory canvas `#FCFBF7`, white surfaces `#FFFFFF`, deep navy text `#142B4A`, azure primary `#1769AA`, teal accent `#087F78`, amber attention `#D99226`. Neutral borders are fine. The canvas stays light. Avoid a gray or black dominant admin theme, oversized gradients, and decorative charts.
+
+**Current Heddle portals.** Warm ivory canvas (`#fff6ee` on the desk, `#fff3ea` on the shop), spruce text `#1a3c34`, and a deep spruce desk sidebar (`#18483d` to `#0f312b`). Actions and the active nav item use a coral-to-rose gradient (`#f07832` to `#e4547c`). Display type is Fraunces; UI type is Outfit. The shop is a light storefront with a narrow rail, not a copy of the desk sidebar.
+
+Shared craft for both portals: clear page hierarchy, readable tables, responsive navigation, visible focus, semantic labels, and feedback for loading, empty, error, success, and destructive confirmation. Connected screens show data from the APIs. Sample catalog rows are seed data, not live sales.
+
+## Records
+
+- **Product.** `id`, unique `sku`, `name`, `description`, `category`, `unitPrice`, `status` (`ACTIVE` or `DISCONTINUED`), `createdAt`, `updatedAt`. The shop formats amounts as USD. There is no currency column.
+- **Offer.** `id`, unique `code`, `name`, `description`, `offerPrice`, `status` (`DRAFT`, `ACTIVE`, `EXPIRED`), `startsOn`, `endsOn`, `productIds` (required, one or many), `createdAt`, `updatedAt`. Detail responses also include the matching product summaries.
+- **Customer.** `id`, `fullName`, unique `email`, `phone`, `status`, timestamps. The service stores a password hash and does not return it.
+- **Order.** `id`, `orderNumber`, customer snapshot, `offerId`, `offerName`, `totalAmount`, `status` (`PLACED`, `CONFIRMED`, `FULFILLED`, `CANCELLED`), `note`, line snapshots, `placedAt`, `updatedAt`. Each line has `productId`, `sku`, `productName`, `quantity`, and `unitPrice`. Purchase currently writes quantity `1` for every product in the offer and sets the total from `offerPrice`.
+- **Inventory.** Stock is keyed by SKU, with available and reserved quantities. Reservation is part of purchase, as described in ARCHITECTURE.md.
+
+## Acceptance
+
+A shopper can sign up, sign in, open an active offer, purchase it, and see that order. A desk operator can find the same order and change it, and cannot create one. Closing the target list, cancellation, idempotency, and payment gaps above is separate work. Incident acceptance is the definition of done in CLAUDE.md.
