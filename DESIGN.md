@@ -29,21 +29,21 @@ Routes in `Portals/agentic-ai-admin` (Vite on port 5173): `/overview`, `/product
 
 | Screen | Writes | How the list works |
 |---|---|---|
-| Product catalog | Create, update, hard delete | `GET /api/products`, then browser filters and pages |
-| Offers | Create, update, hard delete. The form requires one or more existing products (`productIds`) | `GET /api/offers`, then browser filters and pages |
-| Customers | Create, update, hard delete | `GET /api/customers`, then browser filters and pages |
-| Orders | Update status and note. Hard delete. No create action | `GET /api/orders`, then browser filters and pages |
+| Product catalog | Create, update, hard delete | `GET /api/products` with `name`, `sku`, `category`, `status`, then the browser pages that list |
+| Offers | Create, update, hard delete. The form requires one or more existing products (`productIds`) | `GET /api/offers` with `name`, `code`, `product`, `status`, then the browser pages that list |
+| Customers | Create, update, hard delete | `GET /api/customers` with `name`, `email`, `status`, then the browser pages that list |
+| Orders | Update status and note. Hard delete. No create action | `GET /api/orders` with `customer`, `email`, `offer`, `status`, `from`, `to`, then the browser pages that list |
 
-Order filters include customer name, email, offer name, status, and a from/to range on `placedAt`. The range uses the local calendar day and includes both ends. The screens do not send those criteria to the API.
+Order `from` and `to` are inclusive UTC calendar days. The API treats `to` as the start of the next UTC day, so that day's orders are included. The shop order page does not send these parameters.
 
-Empty, error, and confirmation states exist on the current forms. Result copy counts the filtered browser list. It does not mean the API applied the filter.
+Empty, error, and confirmation states exist on the current forms. The desk list copy counts the latest 100 matches returned by the API.
 
 ## Target behavior
 
 These behaviors are the product contract. They are not what the screens do today.
 
-- List APIs accept the filters, apply them, sort newest first, and return at most 100 matches. The browser paginates only that bounded set. Copy should say how many of those latest 100 matches are on screen. That is not global pagination. A later server-side page parameter can cover older history.
-- Order dates filter on `placedAt`. Document the timezone. The start instant is inclusive and the end instant is exclusive (`placedAt >= from` and `placedAt < toExclusive`).
+- A later server-side page parameter can cover matches beyond the latest 100. The desk already filters before that limit and pages the returned list.
+- Shop order dates, when that screen has them, use the same UTC day rule as the desk.
 - Search is debounced, resettable, keyboard accessible, and reflected in the URL where that helps the operator return to the same view.
 - Order removal becomes cancellation with an audit trail. Keep the financial record. `CANCELLED` already exists as a status; the current `DELETE` still erases the row.
 - Checkout stays authenticated. The server continues to own identity and price. Add an idempotency key so a repeated purchase does not create a second order. Add a payment step only as a clearly labeled simulated test integration until a real provider is approved.

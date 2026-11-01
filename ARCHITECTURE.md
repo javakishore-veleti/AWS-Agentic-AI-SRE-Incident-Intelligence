@@ -46,7 +46,18 @@ Desk writes do not send a bearer token. `GET /api/orders` is also unauthenticate
 
 ## HTTP contracts today
 
-List routes below return the latest 100 rows and ignore filter query parameters. `/api/offers/active` is the exception inside that limit: from those latest 100 it keeps `ACTIVE` offers whose `startsOn` is null or on or before today UTC, and whose `endsOn` is null or on or after today UTC. Updates use `PUT`. Deletes call `deleteById`.
+Desk list routes apply optional filters, sort newest first, and return at most 100 matches. A blank parameter is no filter, so a call with no parameters is still the latest 100. Text is a case-insensitive contains match. Status is an exact enum value; an unknown status is 400.
+
+| Route | Parameters |
+|---|---|
+| `GET /api/products` | `name`, `sku`, `category`, `status` |
+| `GET /api/offers` | `name`, `code`, `product`, `status` |
+| `GET /api/customers` | `name`, `email`, `status` |
+| `GET /api/orders` | `customer`, `email`, `offer`, `status`, `from`, `to` |
+
+`product` matches the catalog product name or SKU after the catalog lookup, then the list is limited to 100. `from` and `to` are inclusive UTC calendar days: `placedAt` is at or after the start of `from`, and before the start of the day after `to`. An unparseable date is 400.
+
+`/api/offers/active` still starts from the unfiltered latest 100 and keeps `ACTIVE` offers whose `startsOn` is null or on or before today UTC, and whose `endsOn` is null or on or after today UTC. Shop routes do not take these desk parameters. Updates use `PUT`. Deletes call `deleteById`.
 
 | Service | Routes |
 |---|---|
@@ -69,7 +80,7 @@ The investigation agent exposes `GET /health`, `GET /api/services`, and `POST /a
 Still to build. Do not document these as present:
 
 - An API gateway in front of the five services.
-- Server-side filters applied before the 100-row limit, then browser pagination of that bounded result. Order ranges use `placedAt`, inclusive start, exclusive end, in a documented timezone. DESIGN.md states the current inclusive local-day behavior.
+- Shop offer search and shop order dates applied on the server before the latest-100 limit. The desk lists already do this. Shop order dates, where the screen has them, still compare the browser's local calendar day.
 - Order cancellation that retains the row and records an audit trail. Keep using `PUT` for updates unless a task changes the verb.
 - An idempotency key on purchase, and a payment step labeled as a simulation until a real provider is approved.
 - Authorization on desk writes and on `GET /api/orders`, so a shopper token cannot read another customer's orders.
