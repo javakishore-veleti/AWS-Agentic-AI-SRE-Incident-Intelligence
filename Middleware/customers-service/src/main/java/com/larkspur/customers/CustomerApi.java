@@ -17,7 +17,10 @@ import java.util.List;
 import java.util.UUID;
 import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -31,12 +34,27 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 interface CustomerRepository extends JpaRepository<Customer, UUID> {
   List<Customer> findTop100ByOrderByCreatedAtDesc();
+
+  @Query("""
+      select c from Customer c
+      where (:name is null or lower(c.fullName) like lower(concat('%', :name, '%')))
+        and (:email is null or lower(c.email) like lower(concat('%', :email, '%')))
+        and (:status is null or c.status = :status)
+      order by c.createdAt desc
+      """)
+  List<Customer> search(
+      @Param("name") String name,
+      @Param("email") String email,
+      @Param("status") CustomerStatus status,
+      Pageable pageable);
 
   java.util.Optional<Customer> findByEmail(String email);
 }
@@ -77,8 +95,11 @@ class CustomerController {
   }
 
   @GetMapping("/customers")
-  List<CustomerResponse> latest() {
-    return customers.latest();
+  List<CustomerResponse> latest(
+      @RequestParam(required = false) String name,
+      @RequestParam(required = false) String email,
+      @RequestParam(required = false) String status) {
+    return customers.latest(name, email, status);
   }
 
   @GetMapping("/customers/{id}")
@@ -130,8 +151,29 @@ class CustomerService {
     this.tokens = tokens;
   }
 
-  List<CustomerResponse> latest() {
-    return customers.findTop100ByOrderByCreatedAtDesc().stream().map(CustomerService::toResponse).toList();
+  List<CustomerResponse> latest(String name, String email, String status) {
+    return customers.search(text(name), text(email), status(status), PageRequest.of(0, 100)).stream()
+        .map(CustomerService::toResponse)
+        .toList();
+  }
+
+  private static String text(String value) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    return value.trim();
+  }
+
+  private static CustomerStatus status(String value) {
+    String text = text(value);
+    if (text == null) {
+      return null;
+    }
+    try {
+      return CustomerStatus.valueOf(text);
+    } catch (IllegalArgumentException exception) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown status.");
+    }
   }
 
   CustomerResponse get(UUID id) {

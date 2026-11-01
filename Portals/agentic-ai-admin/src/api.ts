@@ -32,7 +32,17 @@ export async function api<T>(url: string, init?: RequestInit): Promise<T> {
   return payload as T
 }
 
-export const loadProducts = () => api<Product[]>(`${catalog}/api/products`)
+function query(params: Record<string, string>) {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value.trim()) search.set(key, value.trim())
+  }
+  const text = search.toString()
+  return text ? `?${text}` : ""
+}
+
+export const loadProducts = (criteria: { name: string; sku: string; category: string; status: string } = { name: "", sku: "", category: "", status: "" }) =>
+  api<Product[]>(`${catalog}/api/products${query(criteria)}`)
 export const saveProduct = (body: unknown, id?: string) =>
   api<Product>(id ? `${catalog}/api/products/${id}` : `${catalog}/api/products`, {
     method: id ? "PUT" : "POST",
@@ -40,7 +50,8 @@ export const saveProduct = (body: unknown, id?: string) =>
   })
 export const removeProduct = (id: string) => api<void>(`${catalog}/api/products/${id}`, { method: "DELETE" })
 
-export const loadOffers = () => api<Offer[]>(`${offers}/api/offers`)
+export const loadOffers = (criteria: { name: string; code: string; product: string; status: string } = { name: "", code: "", product: "", status: "" }) =>
+  api<Offer[]>(`${offers}/api/offers${query(criteria)}`)
 export const saveOffer = (body: unknown, id?: string) =>
   api<Offer>(id ? `${offers}/api/offers/${id}` : `${offers}/api/offers`, {
     method: id ? "PUT" : "POST",
@@ -48,7 +59,8 @@ export const saveOffer = (body: unknown, id?: string) =>
   })
 export const removeOffer = (id: string) => api<void>(`${offers}/api/offers/${id}`, { method: "DELETE" })
 
-export const loadCustomers = () => api<Customer[]>(`${customers}/api/customers`)
+export const loadCustomers = (criteria: { name: string; email: string; status: string } = { name: "", email: "", status: "" }) =>
+  api<Customer[]>(`${customers}/api/customers${query(criteria)}`)
 export const saveCustomer = (body: unknown, id?: string) =>
   api<Customer>(id ? `${customers}/api/customers/${id}` : `${customers}/api/customers`, {
     method: id ? "PUT" : "POST",
@@ -56,7 +68,8 @@ export const saveCustomer = (body: unknown, id?: string) =>
   })
 export const removeCustomer = (id: string) => api<void>(`${customers}/api/customers/${id}`, { method: "DELETE" })
 
-export const loadOrders = () => api<ShopOrder[]>(`${orders}/api/orders`)
+export const loadOrders = (criteria: { customer: string; email: string; offer: string; status: string; from: string; to: string } = { customer: "", email: "", offer: "", status: "", from: "", to: "" }) =>
+  api<ShopOrder[]>(`${orders}/api/orders${query(criteria)}`)
 export const saveOrder = (id: string, body: unknown) =>
   api<ShopOrder>(`${orders}/api/orders/${id}`, { method: "PUT", body: JSON.stringify(body) })
 export const removeOrder = (id: string) => api<void>(`${orders}/api/orders/${id}`, { method: "DELETE" })

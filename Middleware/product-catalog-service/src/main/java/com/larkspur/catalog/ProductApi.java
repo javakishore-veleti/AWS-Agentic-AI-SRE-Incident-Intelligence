@@ -52,8 +52,12 @@ class ProductController {
   }
 
   @GetMapping
-  List<ProductResponse> latest() {
-    return products.latest();
+  List<ProductResponse> latest(
+      @RequestParam(required = false) String name,
+      @RequestParam(required = false) String sku,
+      @RequestParam(required = false) String category,
+      @RequestParam(required = false) String status) {
+    return products.latest(name, sku, category, status);
   }
 
   @GetMapping("/lookup")

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { loadProducts, removeProduct, saveProduct } from "../api"
 import type { Product, ProductStatus } from "../types"
 import { Field, Modal, Pager, money, pretty, usePaged } from "../ui"
@@ -17,24 +17,24 @@ export function ProductsPage() {
   const [busy, setBusy] = useState(false)
 
   async function refresh() {
-    setRows(await loadProducts())
+    setRows(await loadProducts(criteria))
   }
 
   useEffect(() => {
-    refresh().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Could not load products."))
-  }, [])
+    let active = true
+    loadProducts(criteria)
+      .then((loaded) => {
+        if (active) setRows(loaded)
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : "Could not load products.")
+      })
+    return () => {
+      active = false
+    }
+  }, [criteria])
 
-  const filtered = useMemo(() => rows.filter((row) => {
-    const name = criteria.name.toLowerCase()
-    const sku = criteria.sku.toLowerCase()
-    const category = criteria.category.toLowerCase()
-    if (name && !row.name.toLowerCase().includes(name)) return false
-    if (sku && !row.sku.toLowerCase().includes(sku)) return false
-    if (category && !row.category.toLowerCase().includes(category)) return false
-    if (criteria.status && row.status !== criteria.status) return false
-    return true
-  }), [rows, criteria])
-  const page = usePaged(filtered, JSON.stringify(criteria))
+  const page = usePaged(rows, JSON.stringify(criteria))
 
   function openNew() {
     setForm(empty)
@@ -102,7 +102,7 @@ export function ProductsPage() {
       <div className="page-head">
         <div>
           <h1>Product catalog</h1>
-          <p className="lede">Latest 100 products. Search and pages stay in the browser.</p>
+          <p className="lede">Latest 100 matching products. Pages stay in the browser.</p>
         </div>
         <button className="primary" type="button" onClick={openNew}>New product</button>
       </div>
