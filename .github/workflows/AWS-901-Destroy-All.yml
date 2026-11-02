@@ -1,0 +1,128 @@
+name: AWS-901-Destroy-All
+
+"on":
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment.
+        type: choice
+        options: [dev, stage]
+        default: dev
+      confirmation:
+        description: Type DESTROY-dev or DESTROY-stage.
+        type: string
+        required: true
+      dry_run:
+        description: Print the stacks and stop before deleting them.
+        type: boolean
+        default: true
+      workloads_removed:
+        description: Set true only after AWS-911-Undeploy-All has removed the workloads.
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      confirmation:
+        type: string
+        required: true
+      dry_run:
+        type: boolean
+        default: true
+      workloads_removed:
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: aws-901-destroy-all-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  confirm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a typed confirmation and a completed undeploy
+        env:
+          ENV: ${{ inputs.environment }}
+          CONFIRM: ${{ inputs.confirmation }}
+          REMOVED: ${{ inputs.workloads_removed }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRM" != "DESTROY-$ENV" ]; then
+            echo "Confirmation must be DESTROY-$ENV."
+            exit 1
+          fi
+          if [ "$REMOVED" != "true" ]; then
+            echo "Run AWS-911-Undeploy-All before deleting infrastructure."
+            exit 1
+          fi
+  ingress:
+    needs: confirm
+    uses: ./.github/workflows/AWS-008-Destroy-Ingress.yml
+    with:
+      environment: ${{ inputs.environment }}
+      confirmation: ${{ inputs.confirmation }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  observability:
+    needs: ingress
+    uses: ./.github/workflows/AWS-007-Destroy-Observability.yml
+    with:
+      environment: ${{ inputs.environment }}
+      confirmation: ${{ inputs.confirmation }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  eks:
+    needs: observability
+    uses: ./.github/workflows/AWS-006-Destroy-Eks.yml
+    with:
+      environment: ${{ inputs.environment }}
+      confirmation: ${{ inputs.confirmation }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  redis:
+    needs: eks
+    uses: ./.github/workflows/AWS-005-Destroy-Redis.yml
+    with:
+      environment: ${{ inputs.environment }}
+      confirmation: ${{ inputs.confirmation }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  rds:
+    needs: redis
+    uses: ./.github/workflows/AWS-004-Destroy-Rds.yml
+    with:
+      environment: ${{ inputs.environment }}
+      confirmation: ${{ inputs.confirmation }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  ecr:
+    needs: rds
+    uses: ./.github/workflows/AWS-003-Destroy-Ecr.yml
+    with:
+      environment: ${{ inputs.environment }}
+      confirmation: ${{ inputs.confirmation }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  security:
+    needs: ecr
+    uses: ./.github/workflows/AWS-002-Destroy-Security.yml
+    with:
+      environment: ${{ inputs.environment }}
+      confirmation: ${{ inputs.confirmation }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  network:
+    needs: security
+    uses: ./.github/workflows/AWS-001-Destroy-Network.yml
+    with:
+      environment: ${{ inputs.environment }}
+      confirmation: ${{ inputs.confirmation }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
