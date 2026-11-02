@@ -10,7 +10,7 @@ The customer-facing name is Heddle. Sample rows use `heddle.example` mail, SKU p
 
 **Desk operator.** Maintain the catalog, offers, and customers. Inspect orders, change status and note, and remove a row with the current hard delete. The desk does not create orders.
 
-**SRE.** Investigate a real incident from evidence. The agent recommends; a person approves any change. The desk has no incidents screen yet. That screen is a later section, separate from commerce.
+**SRE.** Investigate a real incident from evidence. The agent recommends; a person approves any change. The desk Investigations screen is separate from commerce. It shows the report returned by the investigation agent, or a labeled sample, and it can export that report. It does not apply a change.
 
 ## What the shop does today
 
@@ -25,7 +25,7 @@ There is no payment step. A second click after a placed order uses a new idempot
 
 ## What the desk does today
 
-Routes in `Portals/agentic-ai-admin` (Vite on port 5173): `/overview`, `/products`, `/offers`, `/customers`, `/orders`. The desk first asks for an administrator sign-in. A customer token is rejected on the page. The session is kept in `sessionStorage` under `heddle.desk`, and later calls send `Authorization`.
+Routes in `Portals/agentic-ai-admin` (Vite on port 5173): `/overview`, `/products`, `/offers`, `/customers`, `/orders`, `/investigations`. The desk first asks for an administrator sign-in. A customer token is rejected on the page. The session is kept in `sessionStorage` under `heddle.desk`, and later calls send `Authorization`.
 
 | Screen | Writes | How the list works |
 |---|---|---|
@@ -33,6 +33,7 @@ Routes in `Portals/agentic-ai-admin` (Vite on port 5173): `/overview`, `/product
 | Offers | Create, update, hard delete. The form requires one or more existing products (`productIds`) | `GET /api/offers` with `name`, `code`, `product`, `status`, then the browser pages that list |
 | Customers | Create, update, hard delete | `GET /api/customers` with `name`, `email`, `status`, then the browser pages that list |
 | Orders | Update status and note. Hard delete. No create action | `GET /api/orders` with `customer`, `email`, `offer`, `status`, `from`, `to`, then the browser pages that list |
+| Investigations | None. Export downloads the open report | `POST /api/investigations` on the investigation agent, or a labeled sample kept in the page |
 
 Order `from` and `to` are inclusive UTC calendar days. The API treats `to` as the start of the next UTC day, so that day's orders are included. The shop order page does not send these parameters.
 
