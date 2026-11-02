@@ -1,0 +1,96 @@
+name: AWS-006-Setup-Eks
+
+"on":
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment.
+        type: choice
+        options: [dev, stage]
+        default: dev
+      dry_run:
+        description: Show what would change and stop before applying it.
+        type: boolean
+        default: true
+
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      dry_run:
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: aws-006-setup-eks-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Confirm the caller
+        env:
+          EXPECTED_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          EXPECTED_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          account="$(aws sts get-caller-identity --query Account --output text)"
+          if [ "$account" != "$EXPECTED_ACCOUNT" ]; then
+            echo "The caller account does not match AWS_ACCOUNT_ID."
+            exit 1
+          fi
+          region="$(aws configure get region)"
+          if [ "$region" != "$EXPECTED_REGION" ]; then
+            echo "The caller region does not match AWS_REGION."
+            exit 1
+          fi
+
+      - name: Preview or deploy the stack
+        env:
+          ENV: ${{ inputs.environment }}
+          DRY: ${{ inputs.dry_run }}
+          STACK: heddle-${{ inputs.environment }}-006-eks
+
+        run: |
+          set -euo pipefail
+          stack_output() {
+            aws cloudformation describe-stacks --stack-name "$1" \
+              --query "Stacks[0].Outputs[?OutputKey=='$2'].OutputValue" --output text
+          }
+
+          params=(
+            Environment="$ENV"
+            AppSubnet1="$(stack_output heddle-${ENV}-001-network AppSubnet1)"
+            AppSubnet2="$(stack_output heddle-${ENV}-001-network AppSubnet2)"
+            AppSecurityGroupId="$(stack_output heddle-${ENV}-002-security AppSecurityGroupId)"
+            ClusterRoleArn="$(stack_output heddle-${ENV}-002-security EksClusterRoleArn)"
+            NodeRoleArn="$(stack_output heddle-${ENV}-002-security EksNodeRoleArn)"
+          )
+
+          args=(
+            --stack-name "$STACK"
+            --template-file CICD/AWS/CloudFormation/006-eks.yaml
+            --parameter-overrides "${params[@]}"
+            --tags Project=Heddle Environment="$ENV" ManagedBy=cloudformation Owner=heddle
+            --capabilities CAPABILITY_NAMED_IAM
+            --no-fail-on-empty-changeset
+          )
+          if [ "$DRY" = "true" ]; then
+            aws cloudformation deploy "${args[@]}" --no-execute-changeset
+            echo "Dry run only. The change set was not executed."
+          else
+            aws cloudformation deploy "${args[@]}"
+          fi

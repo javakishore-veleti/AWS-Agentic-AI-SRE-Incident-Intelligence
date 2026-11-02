@@ -1,0 +1,94 @@
+name: AWS-007-Destroy-Observability
+
+"on":
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment.
+        type: choice
+        options: [dev, stage]
+        default: dev
+      dry_run:
+        description: Show what would change and stop before applying it.
+        type: boolean
+        default: true
+
+      confirmation:
+        description: Type DESTROY-dev or DESTROY-stage.
+        type: string
+        required: true
+
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      dry_run:
+        type: boolean
+        default: true
+
+      confirmation:
+        type: string
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: aws-007-destroy-observability-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Confirm the caller
+        env:
+          EXPECTED_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          EXPECTED_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          account="$(aws sts get-caller-identity --query Account --output text)"
+          if [ "$account" != "$EXPECTED_ACCOUNT" ]; then
+            echo "The caller account does not match AWS_ACCOUNT_ID."
+            exit 1
+          fi
+          region="$(aws configure get region)"
+          if [ "$region" != "$EXPECTED_REGION" ]; then
+            echo "The caller region does not match AWS_REGION."
+            exit 1
+          fi
+
+      - name: Inventory the stack, then delete it only when requested
+        env:
+          ENV: ${{ inputs.environment }}
+          DRY: ${{ inputs.dry_run }}
+          CONFIRM: ${{ inputs.confirmation }}
+          STACK: heddle-${{ inputs.environment }}-007-observability
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRM" != "DESTROY-$ENV" ]; then
+            echo "Confirmation must be DESTROY-$ENV."
+            exit 1
+          fi
+          project="$(aws cloudformation describe-stacks --stack-name "$STACK" --query "Stacks[0].Tags[?Key=='Project'].Value" --output text)"
+          managed="$(aws cloudformation describe-stacks --stack-name "$STACK" --query "Stacks[0].Tags[?Key=='ManagedBy'].Value" --output text)"
+          if [ "$project" != "Heddle" ] || [ "$managed" != "cloudformation" ]; then
+            echo "Refusing to delete a stack that this project does not own."
+            exit 1
+          fi
+          aws cloudformation list-stack-resources --stack-name "$STACK" --output table
+          if [ "$DRY" = "true" ]; then
+            echo "Dry run only. The stack was not deleted."
+            exit 0
+          fi
+          aws cloudformation delete-stack --stack-name "$STACK"
+          aws cloudformation wait stack-delete-complete --stack-name "$STACK"

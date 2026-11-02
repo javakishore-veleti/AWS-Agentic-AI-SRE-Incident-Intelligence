@@ -1,0 +1,86 @@
+name: AWS-100-Deploy-Backend
+
+"on":
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment.
+        type: choice
+        options: [dev, stage]
+        default: dev
+      dry_run:
+        description: Print the actions and do not build or apply them.
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      dry_run:
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: aws-100-deploy-backend-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Build, push, and apply the backend, or stop when dry_run is true
+        env:
+          ENV: ${{ inputs.environment }}
+          DRY: ${{ inputs.dry_run }}
+          EXPECTED_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          EXPECTED_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          account="$(aws sts get-caller-identity --query Account --output text)"
+          if [ "$account" != "$EXPECTED_ACCOUNT" ]; then
+            echo "The caller account does not match AWS_ACCOUNT_ID."
+            exit 1
+          fi
+          if [ "$DRY" = "true" ]; then
+            echo "Dry run only. Images were not built and manifests were not applied."
+            exit 0
+          fi
+          aws eks update-kubeconfig --name "heddle-${ENV}" --region "$EXPECTED_REGION"
+          aws ecr get-login-password --region "$EXPECTED_REGION" | docker login --username AWS --password-stdin "${account}.dkr.ecr.${EXPECTED_REGION}.amazonaws.com"
+          db_host="$(aws cloudformation describe-stacks --stack-name "heddle-${ENV}-004-rds" --query "Stacks[0].Outputs[?OutputKey=='DbEndpoint'].OutputValue" --output text)"
+          redis_host="$(aws cloudformation describe-stacks --stack-name "heddle-${ENV}-005-redis" --query "Stacks[0].Outputs[?OutputKey=='RedisEndpoint'].OutputValue" --output text)"
+          kubectl create namespace heddle --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n heddle create configmap heddle-endpoints --from-literal=dbHost="$db_host" --from-literal=redisHost="$redis_host" --dry-run=client -o yaml | kubectl apply -f -
+          secret_json="$(aws secretsmanager get-secret-value --secret-id "heddle/${ENV}/database" --query SecretString --output text)"
+          password="$(printf '%s' "$secret_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["password"], end="")')"
+          kubectl -n heddle create secret generic heddle-database --from-literal=password="$password" --dry-run=client -o yaml | kubectl apply -f -
+          unset password secret_json
+          rendered="$(mktemp)"
+          cp CICD/AWS/kubernetes/backend.yaml "$rendered"
+          services=(
+            "catalog:product-catalog-service:8081:CatalogRepositoryUri"
+            "offers:offers-service:8082:OffersRepositoryUri"
+            "customers:customers-service:8083:CustomersRepositoryUri"
+            "orders:orders-service:8084:OrdersRepositoryUri"
+            "inventory:inventory-service:8085:InventoryRepositoryUri"
+          )
+          for spec in "${services[@]}"; do
+            IFS=: read -r name module port output <<<"$spec"
+            uri="$(aws cloudformation describe-stacks --stack-name "heddle-${ENV}-003-ecr" --query "Stacks[0].Outputs[?OutputKey=='${output}'].OutputValue" --output text)"
+            docker build -f CICD/AWS/docker/java.Dockerfile --build-arg "SERVICE=${module}" --build-arg "PORT=${port}" -t "${uri}:latest" .
+            docker push "${uri}:latest"
+            sed -i "s#heddle-${name}:local#${uri}:latest#" "$rendered"
+          done
+          kubectl apply -f "$rendered"
+          rm -f "$rendered"
