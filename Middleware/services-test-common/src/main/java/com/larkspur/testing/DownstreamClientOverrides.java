@@ -1,6 +1,7 @@
 package com.larkspur.testing;
 
 import java.util.List;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
@@ -29,7 +30,9 @@ public final class DownstreamClientOverrides implements BeanFactoryPostProcessor
       RootBeanDefinition definition = new RootBeanDefinition(RestClient.class);
       definition.setTargetType(RestClient.class);
       definition.setScope(BeanDefinition.SCOPE_SINGLETON);
-      definition.setInstanceSupplier(() -> DownstreamServers.bind(name));
+      definition.setInstanceSupplier(() -> DownstreamServers.bind(
+          name,
+          beanFactory.getBeanProvider(ObservationRegistry.class).getIfAvailable()));
       registry.registerBeanDefinition(name, definition);
     }
   }
