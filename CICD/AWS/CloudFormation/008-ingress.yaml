@@ -1,0 +1,273 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  CloudFormation-owned application load balancer. Kubernetes manifests must not
+  create a second load balancer. HTTP is the lab listener. HTTPS is added only
+  when CertificateArn is set.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, stage]
+  Project:
+    Type: String
+    Default: Heddle
+  Owner:
+    Type: String
+    Default: heddle
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet::Id
+  AlbSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+  CertificateArn:
+    Type: String
+    Default: ""
+
+Conditions:
+  HasCert: !Not [!Equals [!Ref CertificateArn, ""]]
+
+Resources:
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub heddle-${Environment}-alb
+      Scheme: internet-facing
+      Type: application
+      IpAddressType: ipv4
+      SecurityGroups:
+        - !Ref AlbSecurityGroupId
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-alb
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  CatalogTargets:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub heddle-${Environment}-catalog
+      VpcId: !Ref VpcId
+      Port: 30081
+      Protocol: HTTP
+      TargetType: instance
+      HealthCheckPath: /actuator/health
+      HealthCheckPort: "30081"
+      Matcher:
+        HttpCode: "200"
+      Tags:
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  OffersTargets:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub heddle-${Environment}-offers
+      VpcId: !Ref VpcId
+      Port: 30082
+      Protocol: HTTP
+      TargetType: instance
+      HealthCheckPath: /actuator/health
+      HealthCheckPort: "30082"
+      Matcher:
+        HttpCode: "200"
+      Tags:
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  CustomersTargets:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub heddle-${Environment}-customers
+      VpcId: !Ref VpcId
+      Port: 30083
+      Protocol: HTTP
+      TargetType: instance
+      HealthCheckPath: /actuator/health
+      HealthCheckPort: "30083"
+      Matcher:
+        HttpCode: "200"
+      Tags:
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  OrdersTargets:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub heddle-${Environment}-orders
+      VpcId: !Ref VpcId
+      Port: 30084
+      Protocol: HTTP
+      TargetType: instance
+      HealthCheckPath: /actuator/health
+      HealthCheckPort: "30084"
+      Matcher:
+        HttpCode: "200"
+      Tags:
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  InventoryTargets:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub heddle-${Environment}-inventory
+      VpcId: !Ref VpcId
+      Port: 30085
+      Protocol: HTTP
+      TargetType: instance
+      HealthCheckPath: /actuator/health
+      HealthCheckPort: "30085"
+      Matcher:
+        HttpCode: "200"
+      Tags:
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            StatusCode: "404"
+            ContentType: text/plain
+            MessageBody: No matching Heddle route
+
+  HttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: HasCert
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            StatusCode: "404"
+            ContentType: text/plain
+            MessageBody: No matching Heddle route
+
+  CatalogRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpListener
+      Priority: 10
+      Conditions:
+        - Field: path-pattern
+          Values: ["/api/products*"]
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref CatalogTargets
+
+  OffersRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpListener
+      Priority: 20
+      Conditions:
+        - Field: path-pattern
+          Values: ["/api/offers*"]
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref OffersTargets
+
+  CustomersRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpListener
+      Priority: 30
+      Conditions:
+        - Field: path-pattern
+          Values: ["/api/customers*", "/api/auth*"]
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref CustomersTargets
+
+  OrdersRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpListener
+      Priority: 40
+      Conditions:
+        - Field: path-pattern
+          Values: ["/api/orders*"]
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref OrdersTargets
+
+  InventoryRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpListener
+      Priority: 50
+      Conditions:
+        - Field: path-pattern
+          Values: ["/api/inventory*"]
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref InventoryTargets
+
+Outputs:
+  LoadBalancerDns:
+    Value: !GetAtt LoadBalancer.DNSName
+  LoadBalancerArn:
+    Value: !Ref LoadBalancer
+  CatalogTargetGroupArn:
+    Value: !Ref CatalogTargets
+  OffersTargetGroupArn:
+    Value: !Ref OffersTargets
+  CustomersTargetGroupArn:
+    Value: !Ref CustomersTargets
+  OrdersTargetGroupArn:
+    Value: !Ref OrdersTargets
+  InventoryTargetGroupArn:
+    Value: !Ref InventoryTargets
+  IngressOwner:
+    Value: cloudformation
