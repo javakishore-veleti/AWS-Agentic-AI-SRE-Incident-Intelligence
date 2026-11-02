@@ -166,11 +166,7 @@ Desk list and write routes for products, offers, customers, and orders require a
 
 ### High priority — Order and inventory consistency
 
-The order service saves an order, invokes inventory reservation, and deletes the order on a reported reservation failure.
-
-These are separate databases and separate transactions. A timeout can occur after inventory successfully reserves stock, leaving inventory and order records inconsistent.
-
-This requires idempotency, durable transaction state, and a recovery or compensation strategy.
+`POST /api/orders` requires an `Idempotency-Key`. The order is committed as `RESERVING` before inventory is called. A definite rejection stays on the row as `RESERVATION_FAILED`. An unreachable inventory call leaves `RESERVING`, and the same key finishes that reservation. Inventory remembers `orderRef` and does not reserve the same order twice. The databases are still separate. Releasing stock when an order is cancelled is still open.
 
 ### High priority — Secrets and customer session handling
 

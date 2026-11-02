@@ -148,8 +148,16 @@ function OfferDetailPage() {
     }
     setBusy(true)
     setError(null)
+    const idempotencyKey = crypto.randomUUID()
     try {
-      const order = await purchase(session.token, offer.id)
+      let order
+      try {
+        order = await purchase(session.token, offer.id, idempotencyKey)
+      } catch (reason) {
+        const message = reason instanceof Error ? reason.message : ""
+        if (!message.includes("unreachable")) throw reason
+        order = await purchase(session.token, offer.id, idempotencyKey)
+      }
       setReceipt(`Order ${order.orderNumber} is placed.`)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The purchase did not go through.")
