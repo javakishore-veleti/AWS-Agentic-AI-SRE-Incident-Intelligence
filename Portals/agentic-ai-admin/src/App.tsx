@@ -3,6 +3,7 @@ import { NavLink, Navigate, Route, Routes } from "react-router-dom"
 import { readDesk, signInDesk, writeDesk, type DeskSession } from "./api"
 import { CustomersPage } from "./pages/CustomersPage"
 import { OffersPage } from "./pages/OffersPage"
+import { InvestigationsPage } from "./pages/InvestigationsPage"
 import { OrdersPage } from "./pages/OrdersPage"
 import { OverviewPage } from "./pages/OverviewPage"
 import { ProductsPage } from "./pages/ProductsPage"
@@ -21,6 +22,7 @@ const links = [
   { to: "/offers", label: "Offers", group: "Commerce", d: "M12 3 4 7v10l8 4 8-4V7z" },
   { to: "/customers", label: "Customers", group: "Commerce", d: "M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M20 8v6M17 11h6" },
   { to: "/orders", label: "Orders", group: "Commerce", d: "M6 6h15l-1.5 9h-12zM6 6 5 3H2M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2M18 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2" },
+  { to: "/investigations", label: "Investigations", group: "Investigation", d: "M4 19V5M4 19h16M8 16l3-4 3 2 4-6" },
 ]
 
 function SignIn({ onSuccess }: { onSuccess: (session: DeskSession) => void }) {
@@ -116,6 +118,7 @@ export function App() {
           <Route path="/offers" element={<OffersPage />} />
           <Route path="/customers" element={<CustomersPage />} />
           <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/investigations" element={<InvestigationsPage />} />
         </Routes>
       </main>
     </div>

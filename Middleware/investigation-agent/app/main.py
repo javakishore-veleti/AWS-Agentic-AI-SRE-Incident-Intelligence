@@ -1,12 +1,19 @@
 from datetime import datetime, timezone
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from app.graph import SERVICES, build_graph
 from app.guardrails import record_approval
 
 app = FastAPI(title="Heddle investigation agent")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
 graph = build_graph()
 
 
