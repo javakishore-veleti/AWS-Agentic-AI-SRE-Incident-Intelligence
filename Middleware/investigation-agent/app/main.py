@@ -1,7 +1,10 @@
+from datetime import datetime, timezone
+
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from app.graph import SERVICES, build_graph
+from app.guardrails import record_approval
 
 app = FastAPI(title="Heddle investigation agent")
 graph = build_graph()
@@ -13,6 +16,16 @@ class InvestigationRequest(BaseModel):
     end: str | None = None
 
 
+class ApprovalRequest(BaseModel):
+    approver: str = ""
+    ticket: str = ""
+    environment: str = ""
+    expiresAt: str = ""
+    change: str = ""
+    evidenceIds: list[str] = Field(default_factory=list)
+    executed: bool = False
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "UP"}
@@ -21,6 +34,11 @@ def health() -> dict:
 @app.get("/api/services")
 def services() -> dict:
     return {"services": sorted(SERVICES)}
+
+
+@app.post("/api/approvals")
+def approvals(request: ApprovalRequest) -> dict:
+    return record_approval(request.model_dump(), datetime.now(timezone.utc))
 
 
 @app.post("/api/investigations")
