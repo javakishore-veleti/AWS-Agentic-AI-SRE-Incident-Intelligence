@@ -1,0 +1,105 @@
+name: AWS-900-Setup-All
+
+"on":
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment.
+        type: choice
+        options: [dev, stage]
+        default: dev
+      dry_run:
+        description: Show what would change and stop before applying it.
+        type: boolean
+        default: true
+      vpc_mode:
+        description: existing reuses AWS_VPC_ID.
+        type: choice
+        options: [existing, new]
+        default: existing
+      telemetry_mode:
+        description: self-hosted keeps the local exporters.
+        type: choice
+        options: [self-hosted, cloudwatch]
+        default: self-hosted
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      dry_run:
+        type: boolean
+        default: true
+      vpc_mode:
+        type: string
+        default: existing
+      telemetry_mode:
+        type: string
+        default: self-hosted
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: aws-900-setup-all-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  network:
+    uses: ./.github/workflows/AWS-001-Setup-Network.yml
+    with:
+      environment: ${{ inputs.environment }}
+      dry_run: ${{ inputs.dry_run }}
+      vpc_mode: ${{ inputs.vpc_mode }}
+    secrets: inherit
+  security:
+    needs: network
+    uses: ./.github/workflows/AWS-002-Setup-Security.yml
+    with:
+      environment: ${{ inputs.environment }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  ecr:
+    needs: security
+    uses: ./.github/workflows/AWS-003-Setup-Ecr.yml
+    with:
+      environment: ${{ inputs.environment }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  rds:
+    needs: ecr
+    uses: ./.github/workflows/AWS-004-Setup-Rds.yml
+    with:
+      environment: ${{ inputs.environment }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  redis:
+    needs: rds
+    uses: ./.github/workflows/AWS-005-Setup-Redis.yml
+    with:
+      environment: ${{ inputs.environment }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  eks:
+    needs: redis
+    uses: ./.github/workflows/AWS-006-Setup-Eks.yml
+    with:
+      environment: ${{ inputs.environment }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  observability:
+    needs: eks
+    uses: ./.github/workflows/AWS-007-Setup-Observability.yml
+    with:
+      environment: ${{ inputs.environment }}
+      dry_run: ${{ inputs.dry_run }}
+      telemetry_mode: ${{ inputs.telemetry_mode }}
+    secrets: inherit
+  ingress:
+    needs: observability
+    uses: ./.github/workflows/AWS-008-Setup-Ingress.yml
+    with:
+      environment: ${{ inputs.environment }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
