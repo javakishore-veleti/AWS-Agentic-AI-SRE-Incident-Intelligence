@@ -20,7 +20,7 @@ This file records how Heddle is structured and which contracts exist today. Prod
 
 Postgres 16 listens on `localhost:5432`. The init script creates `offers`, `customers`, `orders`, and `inventory`; the Compose `POSTGRES_DB` is `product_catalog`. Redis 7.4 listens on `localhost:6379`. Offers uses it as a 60-second cache of catalog products (`catalog:product:{id}`). Redis is not a system of record. Java packages are `com.larkspur`.
 
-Local database and JWT defaults are in the Compose files and `application.yml`. Do not copy them into new documents or production configuration. A root `.env.example` is not in the tree.
+The database password and the JWT signing secret are read from `DB_PASSWORD` and `JWT_SECRET`. `application.yml` and the Postgres Compose file have no default for either value. A root `.env.example` is not in the tree. Do not copy a secret into a new document. Postgres applies `POSTGRES_PASSWORD` only when the data volume is first created.
 
 ## Request flow today
 

@@ -7,7 +7,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/customers
     username: sre
-    password: sre_local_password
+    password: ${DB_PASSWORD}
     hikari:
       maximum-pool-size: ${HIKARI_MAX_POOL:10}
       pool-name: customers-pool
@@ -20,7 +20,7 @@ spring:
 
 security:
   jwt:
-    secret: local-dev-sre-incident-intelligence-jwt-secret-key
+    secret: ${JWT_SECRET}
 
 management:
   endpoints:
