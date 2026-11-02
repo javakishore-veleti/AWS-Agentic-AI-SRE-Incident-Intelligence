@@ -1,0 +1,1 @@
+The lifecycle check reads the template and workflow order and runs the evaluation harness with no endpoint. It does not deploy, destroy, or call a model. No AWS account was used, so a measured teardown was not recorded.
