@@ -91,6 +91,8 @@ export function OrdersPage() {
         <Field label="Status">
           <select value={criteria.status} onChange={(event) => setCriteria({ ...criteria, status: event.target.value })}>
             <option value="">Any status</option>
+            <option value="RESERVING">Reserving</option>
+            <option value="RESERVATION_FAILED">Reservation failed</option>
             <option value="PLACED">Placed</option>
             <option value="CONFIRMED">Confirmed</option>
             <option value="FULFILLED">Fulfilled</option>
@@ -136,6 +138,8 @@ export function OrdersPage() {
           <div className="form-grid">
             <Field label="Status">
               <select value={status} onChange={(event) => setStatus(event.target.value as OrderStatus)}>
+                <option value="RESERVING">Reserving</option>
+                <option value="RESERVATION_FAILED">Reservation failed</option>
                 <option value="PLACED">Placed</option>
                 <option value="CONFIRMED">Confirmed</option>
                 <option value="FULFILLED">Fulfilled</option>

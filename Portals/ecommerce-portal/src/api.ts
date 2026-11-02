@@ -58,10 +58,10 @@ export function signin(body: { email: string; password: string }) {
   })
 }
 
-export function purchase(token: string, offerId: string) {
+export function purchase(token: string, offerId: string, idempotencyKey: string) {
   return api<ShopOrder>(`${orders}/api/orders`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, "Idempotency-Key": idempotencyKey },
     body: JSON.stringify({ offerId }),
   })
 }

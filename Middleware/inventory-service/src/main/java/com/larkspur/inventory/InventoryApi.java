@@ -1,11 +1,17 @@
 package com.larkspur.inventory;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +33,22 @@ record StockUpsert(@NotBlank String productName, Integer availableQty) {}
 record ReserveLine(@NotBlank String sku, @Min(1) int qty) {}
 
 record ReserveRequest(@NotBlank String orderRef, @NotEmpty List<@Valid ReserveLine> lines) {}
+
+@Entity
+@Table(name = "reservations")
+class HeldReservation {
+  @Id
+  @Column(length = 40)
+  String orderRef;
+
+  @Column(nullable = false, length = 1000)
+  String fingerprint;
+
+  @Column(nullable = false)
+  Instant createdAt;
+}
+
+interface ReservationRepository extends JpaRepository<HeldReservation, String> {}
 
 @RestController
 @RequestMapping("/api")
@@ -57,10 +79,15 @@ class InventoryController {
 @Service
 class InventoryService {
   private final StockRepository stock;
+  private final ReservationRepository reservations;
   private final long delayMs;
 
-  InventoryService(StockRepository stock, @Value("${fault.response-delay-ms:0}") long delayMs) {
+  InventoryService(
+      StockRepository stock,
+      ReservationRepository reservations,
+      @Value("${fault.response-delay-ms:0}") long delayMs) {
     this.stock = stock;
+    this.reservations = reservations;
     this.delayMs = delayMs;
   }
 
@@ -90,6 +117,14 @@ class InventoryService {
   @Transactional
   void reserve(ReserveRequest request) {
     pause();
+    String fingerprint = fingerprint(request);
+    Optional<HeldReservation> held = reservations.findById(request.orderRef());
+    if (held.isPresent()) {
+      if (!held.get().fingerprint.equals(fingerprint)) {
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "This order already reserved different stock.");
+      }
+      return;
+    }
     for (ReserveLine line : request.lines()) {
       String sku = line.sku().trim().toUpperCase();
       StockItem item = stock.findForUpdate(sku)
@@ -101,6 +136,19 @@ class InventoryService {
       item.reservedQty += line.qty();
       item.updatedAt = Instant.now();
     }
+    HeldReservation created = new HeldReservation();
+    created.orderRef = request.orderRef();
+    created.fingerprint = fingerprint;
+    created.createdAt = Instant.now();
+    reservations.save(created);
+  }
+
+  private static String fingerprint(ReserveRequest request) {
+    return request.lines().stream()
+        .map(line -> line.sku().trim().toUpperCase() + ":" + line.qty())
+        .sorted()
+        .reduce((left, right) -> left + "|" + right)
+        .orElse("");
   }
 
   private void pause() {
