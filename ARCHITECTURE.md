@@ -40,7 +40,7 @@ flowchart LR
   Agent[investigation-agent] --> Health[Actuator health]
 ```
 
-Purchase is the only order create path. `POST /api/orders` requires `Authorization: Bearer <token>` and an `Idempotency-Key` header. The token is a JWT from `POST /api/auth/signup` or `POST /api/auth/signin`. The body is `{ "offerId" }`. Orders loads the offer, rejects a non-`ACTIVE` offer or an offer with no products, copies customer identity from the token, sets `totalAmount` from `offerPrice`, and snapshots each product as a line with quantity 1. It commits the row first with status `RESERVING`, then calls `POST /api/reservations` using the order number as `orderRef`. A successful reservation moves the order to `PLACED`. A definite inventory rejection keeps the row as `RESERVATION_FAILED`. A timeout or an unreachable inventory leaves the row `RESERVING`. The same customer and key returns the original order, or finishes the reservation, and does not create a second row. Inventory treats the same `orderRef` as the same reservation and does not decrement stock again. There is no payment call.
+Purchase is the only order create path. `POST /api/orders` requires `Authorization: Bearer <token>` and an `Idempotency-Key` header. The token is a JWT from `POST /api/auth/signup` or `POST /api/auth/signin`. The body is `{ "offerId" }`. Orders loads the offer, rejects a non-`ACTIVE` offer or an offer with no products, copies customer identity from the token, sets `totalAmount` from `offerPrice`, and snapshots each product as a line with quantity 1. It commits the row first with status `RESERVING`, then calls `POST /api/reservations` using the order number as `orderRef`. A successful reservation moves the order to `PLACED`. A definite inventory rejection keeps the row as `RESERVATION_FAILED`. A timeout or an unreachable inventory leaves the row `RESERVING`. The same customer and key returns the original order, or finishes the reservation, and does not create a second row. Inventory treats the same `orderRef` as the same reservation and does not decrement stock again. There is no payment call. `DELETE /api/orders/{id}` cancels an order for an administrator. The row stays with status `CANCELLED`. One audit row records the previous status and that administrator. Inventory `POST /api/reservations/release` returns the reserved quantity for that order number. A second cancellation does not write another audit row or release stock again. If inventory cannot be reached, the order stays unchanged.
 
 Desk writes do not send a bearer token. `GET /api/orders` is also unauthenticated and returns the latest 100 orders. `GET /api/orders/mine` is the shopper's scoped read.
 
@@ -83,8 +83,7 @@ Still to build. Do not document these as present:
 
 - An API gateway in front of the five services.
 - Shop offer search and shop order dates applied on the server before the latest-100 limit. The desk lists already do this. Shop order dates, where the screen has them, still compare the browser's local calendar day.
-- Order cancellation that retains the row and records an audit trail. Keep using `PUT` for updates unless a task changes the verb.
-- An idempotency key on purchase, and a payment step labeled as a simulation until a real provider is approved.
+- A payment step labeled as a simulation until a real provider is approved. Keep using `PUT` for order updates.
 - Versioned migrations in place of `ddl-auto: update`.
 - Investigation queries against the trace store. Services can export OTLP when `observability.traces.exporter=otlp`. Prometheus remains the metrics store.
 - Read-only investigation tools `query_logs`, `query_metrics`, `query_traces`, `get_kubernetes_events`, and `get_deployment_history`, returning the report contract in CLAUDE.md.

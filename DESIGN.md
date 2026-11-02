@@ -45,7 +45,7 @@ These behaviors are the product contract. They are not what the screens do today
 - A later server-side page parameter can cover matches beyond the latest 100. The desk already filters before that limit and pages the returned list.
 - Shop order dates, when that screen has them, use the same UTC day rule as the desk.
 - Search is debounced, resettable, keyboard accessible, and reflected in the URL where that helps the operator return to the same view.
-- Order removal becomes cancellation with an audit trail. Keep the financial record. `CANCELLED` already exists as a status; the current `DELETE` still erases the row.
+- An administrator cancels an order with `DELETE /api/orders/{id}`. The row stays, the status becomes `CANCELLED`, and one audit row records the previous status and the administrator. Reserved stock is released. A second cancellation does not write another audit row.
 - Checkout stays authenticated. The server continues to own identity and price. Add an idempotency key so a repeated purchase does not create a second order. Add a payment step only as a clearly labeled simulated test integration until a real provider is approved.
 - A shopper can read only their own orders on every order read they can call.
 - Offers stay sets of products. Reject a save that references a missing product.
@@ -73,4 +73,4 @@ Shared craft for both portals: clear page hierarchy, readable tables, responsive
 
 ## Acceptance
 
-A shopper can sign up, sign in, open an active offer, purchase it, and see that order. A desk operator can find the same order and change it, and cannot create one. Closing the target list, cancellation, idempotency, and payment gaps above is separate work. Incident acceptance is the definition of done in CLAUDE.md.
+A shopper can sign up, sign in, open an active offer, purchase it, and see that order. A desk operator can find the same order, change it, or cancel it, and cannot create one. Closing the target list and payment gaps above is separate work. Incident acceptance is the definition of done in CLAUDE.md.

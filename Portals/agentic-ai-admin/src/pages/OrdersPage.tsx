@@ -64,10 +64,10 @@ export function OrdersPage() {
     try {
       await removeOrder(pendingDelete.id)
       setPendingDelete(null)
-      setNotice("Order removed.")
+      setNotice("Order cancelled.")
       await refresh()
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not remove the order.")
+      setError(reason instanceof Error ? reason.message : "Could not cancel the order.")
     } finally {
       setBusy(false)
     }
@@ -119,7 +119,7 @@ export function OrdersPage() {
                   <td><span className={`pill ${row.status}`}>{pretty(row.status)}</span></td>
                   <td className="actions">
                     <button className="text-btn" type="button" onClick={() => openEdit(row)}>Update</button>
-                    <button className="danger" type="button" onClick={() => setPendingDelete(row)}>Remove</button>
+                    <button className="danger" type="button" onClick={() => setPendingDelete(row)}>Cancel</button>
                   </td>
                 </tr>
               ))}
@@ -156,11 +156,11 @@ export function OrdersPage() {
         </Modal>
       ) : null}
       {pendingDelete ? (
-        <Modal title="Remove order" onClose={() => setPendingDelete(null)}>
-          <p>Remove {pendingDelete.orderNumber}?</p>
+        <Modal title="Cancel order" onClose={() => setPendingDelete(null)}>
+          <p>Cancel {pendingDelete.orderNumber}? The order stays on record, and reserved stock is released.</p>
           <div className="form-actions">
             <button className="ghost" type="button" onClick={() => setPendingDelete(null)}>Keep</button>
-            <button className="primary" type="button" disabled={busy} onClick={() => void onDelete()}>Remove</button>
+            <button className="primary" type="button" disabled={busy} onClick={() => void onDelete()}>Cancel order</button>
           </div>
         </Modal>
       ) : null}

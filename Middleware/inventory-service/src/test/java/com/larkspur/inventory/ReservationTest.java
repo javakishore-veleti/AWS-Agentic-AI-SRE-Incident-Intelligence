@@ -55,5 +55,17 @@ class ReservationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[?(@.sku == '" + sku.toUpperCase() + "')].availableQty").value(org.hamcrest.Matchers.hasItem(3)))
         .andExpect(jsonPath("$[?(@.sku == '" + sku.toUpperCase() + "')].reservedQty").value(org.hamcrest.Matchers.hasItem(2)));
+    mvc.perform(post("/api/reservations/release")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"orderRef\":\"HD-1\"}"))
+        .andExpect(status().isNoContent());
+    mvc.perform(get("/api/stock"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[?(@.sku == '" + sku.toUpperCase() + "')].availableQty").value(org.hamcrest.Matchers.hasItem(5)))
+        .andExpect(jsonPath("$[?(@.sku == '" + sku.toUpperCase() + "')].reservedQty").value(org.hamcrest.Matchers.hasItem(0)));
+    mvc.perform(post("/api/reservations/release")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"orderRef\":\"HD-1\"}"))
+        .andExpect(status().isNoContent());
   }
 }
