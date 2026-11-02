@@ -1,0 +1,623 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Metadata:
+  cfn-lint:
+    config:
+      ignore_checks:
+        - W1030
+Description: >-
+  Heddle network. VpcMode existing is the default and does not create or delete
+  the reused VPC. VpcMode new creates a project-owned VPC. Data subnets have no
+  internet route. One NAT is the default.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, stage]
+  Project:
+    Type: String
+    Default: Heddle
+  Owner:
+    Type: String
+    Default: heddle
+  VpcMode:
+    Type: String
+    Default: existing
+    AllowedValues: [existing, new]
+    Description: existing reuses AWS_VPC_ID. new creates a project-owned VPC.
+  ExistingVpcId:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^vpc-[0-9a-f]+$"
+    Description: Required when VpcMode is existing. Pass the AWS_VPC_ID value.
+  ExistingPublicSubnet1:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^subnet-[0-9a-f]+$"
+  ExistingPublicSubnet2:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^subnet-[0-9a-f]+$"
+  ExistingAppSubnet1:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^subnet-[0-9a-f]+$"
+  ExistingAppSubnet2:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^subnet-[0-9a-f]+$"
+  ExistingDataSubnet1:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^subnet-[0-9a-f]+$"
+  ExistingDataSubnet2:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^subnet-[0-9a-f]+$"
+  CreateProjectSubnets:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: In existing mode, true creates project-owned subnets in the reused VPC.
+  NatMode:
+    Type: String
+    Default: single
+    AllowedValues: [single, per-az]
+  VpcCidr:
+    Type: String
+    Default: 10.40.0.0/16
+  PublicSubnet1Cidr:
+    Type: String
+    Default: 10.40.0.0/24
+  PublicSubnet2Cidr:
+    Type: String
+    Default: 10.40.1.0/24
+  AppSubnet1Cidr:
+    Type: String
+    Default: 10.40.10.0/24
+  AppSubnet2Cidr:
+    Type: String
+    Default: 10.40.11.0/24
+  DataSubnet1Cidr:
+    Type: String
+    Default: 10.40.20.0/24
+  DataSubnet2Cidr:
+    Type: String
+    Default: 10.40.21.0/24
+  BudgetEmail:
+    Type: String
+    Default: ""
+  BudgetAmount:
+    Type: String
+    Default: "25"
+
+Conditions:
+  CreateVpc: !Equals [!Ref VpcMode, new]
+  CreateProjectSubnetsFlag: !Equals [!Ref CreateProjectSubnets, "true"]
+  CreateOwnedSubnets: !Or
+    - !Condition CreateVpc
+    - !Condition CreateProjectSubnetsFlag
+  UseSecondNat: !And
+    - !Condition CreateOwnedSubnets
+    - !Equals [!Ref NatMode, per-az]
+  CreateBudget: !And
+    - !Condition CreateVpc
+    - !Not [!Equals [!Ref BudgetEmail, ""]]
+
+Rules:
+  ExistingModeRequiresVpc:
+    RuleCondition: !Equals [!Ref VpcMode, existing]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref ExistingVpcId, ""]]
+        AssertDescription: Existing mode requires ExistingVpcId from AWS_VPC_ID.
+  ExistingModeRequiresSubnets:
+    RuleCondition: !And
+      - !Equals [!Ref VpcMode, existing]
+      - !Equals [!Ref CreateProjectSubnets, "false"]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref ExistingPublicSubnet1, ""]]
+        AssertDescription: Pass the existing public subnet or set CreateProjectSubnets to true.
+      - Assert: !Not [!Equals [!Ref ExistingPublicSubnet2, ""]]
+        AssertDescription: Pass the second public subnet or set CreateProjectSubnets to true.
+      - Assert: !Not [!Equals [!Ref ExistingAppSubnet1, ""]]
+        AssertDescription: Pass the first private app subnet or set CreateProjectSubnets to true.
+      - Assert: !Not [!Equals [!Ref ExistingAppSubnet2, ""]]
+        AssertDescription: Pass the second private app subnet or set CreateProjectSubnets to true.
+      - Assert: !Not [!Equals [!Ref ExistingDataSubnet1, ""]]
+        AssertDescription: Pass the first private data subnet or set CreateProjectSubnets to true.
+      - Assert: !Not [!Equals [!Ref ExistingDataSubnet2, ""]]
+        AssertDescription: Pass the second private data subnet or set CreateProjectSubnets to true.
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Condition: CreateVpc
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-vpc
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Condition: CreateOwnedSubnets
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-igw
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Condition: CreateOwnedSubnets
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Condition: CreateOwnedSubnets
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Ref PublicSubnet1Cidr
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-public-1
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Tier
+          Value: public
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Condition: CreateOwnedSubnets
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Ref PublicSubnet2Cidr
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-public-2
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Tier
+          Value: public
+
+  AppSubnet1:
+    Type: AWS::EC2::Subnet
+    Condition: CreateOwnedSubnets
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Ref AppSubnet1Cidr
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-app-1
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Tier
+          Value: private-app
+
+  AppSubnet2:
+    Type: AWS::EC2::Subnet
+    Condition: CreateOwnedSubnets
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Ref AppSubnet2Cidr
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-app-2
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Tier
+          Value: private-app
+
+  DataSubnet1:
+    Type: AWS::EC2::Subnet
+    Condition: CreateOwnedSubnets
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Ref DataSubnet1Cidr
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-data-1
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Tier
+          Value: private-data
+
+  DataSubnet2:
+    Type: AWS::EC2::Subnet
+    Condition: CreateOwnedSubnets
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Ref DataSubnet2Cidr
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-data-2
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Tier
+          Value: private-data
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Condition: CreateOwnedSubnets
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-public-rt
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Condition: CreateOwnedSubnets
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicAssoc1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateOwnedSubnets
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicAssoc2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateOwnedSubnets
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  NatEip1:
+    Type: AWS::EC2::EIP
+    Condition: CreateOwnedSubnets
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    DependsOn: AttachGateway
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-nat-eip-1
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Condition: CreateOwnedSubnets
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      AllocationId: !GetAtt NatEip1.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-nat-1
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  NatEip2:
+    Type: AWS::EC2::EIP
+    Condition: UseSecondNat
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    DependsOn: AttachGateway
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-nat-eip-2
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    Condition: UseSecondNat
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      AllocationId: !GetAtt NatEip2.AllocationId
+      SubnetId: !Ref PublicSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-nat-2
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  AppRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Condition: CreateOwnedSubnets
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-app-rt-1
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  AppRoute1:
+    Type: AWS::EC2::Route
+    Condition: CreateOwnedSubnets
+    Properties:
+      RouteTableId: !Ref AppRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  AppRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Condition: UseSecondNat
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-app-rt-2
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  AppRoute2:
+    Type: AWS::EC2::Route
+    Condition: UseSecondNat
+    Properties:
+      RouteTableId: !Ref AppRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
+
+  AppAssoc1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateOwnedSubnets
+    Properties:
+      SubnetId: !Ref AppSubnet1
+      RouteTableId: !Ref AppRouteTable1
+
+  AppAssoc2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateOwnedSubnets
+    Properties:
+      SubnetId: !Ref AppSubnet2
+      RouteTableId: !If [UseSecondNat, !Ref AppRouteTable2, !Ref AppRouteTable1]
+
+  DataRouteTable:
+    Type: AWS::EC2::RouteTable
+    Condition: CreateOwnedSubnets
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-data-rt
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: InternetRoute
+          Value: none
+
+  DataAssoc1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateOwnedSubnets
+    Properties:
+      SubnetId: !Ref DataSubnet1
+      RouteTableId: !Ref DataRouteTable
+
+  DataAssoc2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateOwnedSubnets
+    Properties:
+      SubnetId: !Ref DataSubnet2
+      RouteTableId: !Ref DataRouteTable
+
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: CreateOwnedSubnets
+    Properties:
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref AppRouteTable1
+        - !Ref DataRouteTable
+
+  S3EndpointSecond:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: UseSecondNat
+    Properties:
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref AppRouteTable2
+
+  NetworkBudget:
+    Type: AWS::Budgets::Budget
+    Condition: CreateBudget
+    Properties:
+      Budget:
+        BudgetName: !Sub heddle-${Environment}-network
+        BudgetLimit:
+          Amount: !Ref BudgetAmount
+          Unit: USD
+        TimeUnit: MONTHLY
+        BudgetType: COST
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+
+Outputs:
+  VpcId:
+    Value: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+  StackOwnsVpc:
+    Value: !If [CreateVpc, "true", "false"]
+  StackOwnsSubnets:
+    Value: !If [CreateOwnedSubnets, "true", "false"]
+  PublicSubnet1:
+    Value: !If [CreateOwnedSubnets, !Ref PublicSubnet1, !Ref ExistingPublicSubnet1]
+  PublicSubnet2:
+    Value: !If [CreateOwnedSubnets, !Ref PublicSubnet2, !Ref ExistingPublicSubnet2]
+  AppSubnet1:
+    Value: !If [CreateOwnedSubnets, !Ref AppSubnet1, !Ref ExistingAppSubnet1]
+  AppSubnet2:
+    Value: !If [CreateOwnedSubnets, !Ref AppSubnet2, !Ref ExistingAppSubnet2]
+  DataSubnet1:
+    Value: !If [CreateOwnedSubnets, !Ref DataSubnet1, !Ref ExistingDataSubnet1]
+  DataSubnet2:
+    Value: !If [CreateOwnedSubnets, !Ref DataSubnet2, !Ref ExistingDataSubnet2]
+  PublicSubnetIds:
+    Value: !Join
+      - ","
+      - - !If [CreateOwnedSubnets, !Ref PublicSubnet1, !Ref ExistingPublicSubnet1]
+        - !If [CreateOwnedSubnets, !Ref PublicSubnet2, !Ref ExistingPublicSubnet2]
+  PrivateAppSubnetIds:
+    Value: !Join
+      - ","
+      - - !If [CreateOwnedSubnets, !Ref AppSubnet1, !Ref ExistingAppSubnet1]
+        - !If [CreateOwnedSubnets, !Ref AppSubnet2, !Ref ExistingAppSubnet2]
+  PrivateDataSubnetIds:
+    Value: !Join
+      - ","
+      - - !If [CreateOwnedSubnets, !Ref DataSubnet1, !Ref ExistingDataSubnet1]
+        - !If [CreateOwnedSubnets, !Ref DataSubnet2, !Ref ExistingDataSubnet2]
+  NatMode:
+    Value: !Ref NatMode
