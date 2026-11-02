@@ -7,6 +7,7 @@ import yaml
 WORKFLOW = Path(__file__).resolve().parents[3] / ".github" / "workflows" / "AWS-901-Destroy-All.yml"
 ORDER = [
     "confirm",
+    "undeploy",
     "ingress",
     "observability",
     "eks",

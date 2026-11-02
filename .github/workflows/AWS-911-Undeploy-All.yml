@@ -1,0 +1,70 @@
+name: AWS-911-Undeploy-All
+
+"on":
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [dev, stage]
+        default: dev
+      confirmation:
+        description: Type DESTROY-dev or DESTROY-stage.
+        type: string
+        required: true
+      dry_run:
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      confirmation:
+        type: string
+        required: true
+      dry_run:
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: aws-911-undeploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  undeploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Remove the heddle namespace, or stop when dry_run is true
+        env:
+          ENV: ${{ inputs.environment }}
+          CONFIRM: ${{ inputs.confirmation }}
+          DRY: ${{ inputs.dry_run }}
+          EXPECTED_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          EXPECTED_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRM" != "DESTROY-$ENV" ]; then
+            echo "Confirmation must be DESTROY-$ENV."
+            exit 1
+          fi
+          account="$(aws sts get-caller-identity --query Account --output text)"
+          if [ "$account" != "$EXPECTED_ACCOUNT" ]; then
+            echo "The caller account does not match AWS_ACCOUNT_ID."
+            exit 1
+          fi
+          if [ "$DRY" = "true" ]; then
+            echo "Dry run only. The heddle namespace was not deleted."
+            exit 0
+          fi
+          aws eks update-kubeconfig --name "heddle-${ENV}" --region "$EXPECTED_REGION"
+          kubectl delete namespace heddle --wait=true
