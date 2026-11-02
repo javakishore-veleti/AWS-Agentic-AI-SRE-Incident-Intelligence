@@ -1,0 +1,57 @@
+name: AWS-910-Deploy-All
+
+"on":
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [dev, stage]
+        default: dev
+      dry_run:
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      dry_run:
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: aws-910-deploy-all-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  backend:
+    uses: ./.github/workflows/AWS-100-Deploy-Backend.yml
+    with:
+      environment: ${{ inputs.environment }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  portals:
+    needs: backend
+    uses: ./.github/workflows/AWS-101-Deploy-Portals.yml
+    with:
+      environment: ${{ inputs.environment }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  investigation:
+    needs: portals
+    uses: ./.github/workflows/AWS-102-Deploy-Investigation-Agent.yml
+    with:
+      environment: ${{ inputs.environment }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  smoke:
+    needs: investigation
+    uses: ./.github/workflows/AWS-103-Run-Smoke-Tests.yml
+    with:
+      environment: ${{ inputs.environment }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit

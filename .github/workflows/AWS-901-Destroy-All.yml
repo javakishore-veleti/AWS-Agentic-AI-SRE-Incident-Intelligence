@@ -62,8 +62,16 @@ jobs:
             echo "Run AWS-911-Undeploy-All before deleting infrastructure."
             exit 1
           fi
-  ingress:
+  undeploy:
     needs: confirm
+    uses: ./.github/workflows/AWS-911-Undeploy-All.yml
+    with:
+      environment: ${{ inputs.environment }}
+      confirmation: ${{ inputs.confirmation }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+  ingress:
+    needs: undeploy
     uses: ./.github/workflows/AWS-008-Destroy-Ingress.yml
     with:
       environment: ${{ inputs.environment }}
