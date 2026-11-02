@@ -1,0 +1,8 @@
+{
+  "service": "orders-service",
+  "evidence": [
+    {"id": "ev-prometheus-aabbccdd", "source": "prometheus"},
+    {"id": "ev-jaeger-11223344", "source": "jaeger"}
+  ],
+  "hypothesis": "inconclusive"
+}
