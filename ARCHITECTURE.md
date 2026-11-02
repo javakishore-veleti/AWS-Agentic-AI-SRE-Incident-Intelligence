@@ -104,6 +104,8 @@ Exporter choice is `observability.metrics.exporter`, `observability.logs.exporte
 
 `logstash` activates the `elk` Spring profile. Logback then sends JSON to Logstash TCP `localhost:5044`. `console` does not. The ELK Compose project publishes Elasticsearch on `localhost:9200` and Kibana on `localhost:5601`.
 
+Console and Logstash both write one JSON object per line. Each request stores `correlationId` and `service` on the log context and returns `X-Correlation-Id`. A supplied id is kept when it is 1–80 letters, digits, dots, underscores, or hyphens. Anything else, including a token, is replaced with a new id. The failure log does not include the `Authorization` header. Kibana can search `correlationId:"obs-002-failure"` once Logstash has indexed that line. This change did not open Kibana.
+
 `otlp` turns on Micrometer tracing with the OpenTelemetry bridge and posts spans to `observability.traces.otlp-endpoint`, default `http://127.0.0.1:4318/v1/traces`. Local Jaeger all-in-one listens there and serves its UI on `http://localhost:16686`. The same OTLP endpoint is the switch for a later collector. `none` leaves tracing off. `local:middleware:all:start` selects `logstash` when port 5044 is open and `otlp` when port 4318 is open, unless those variables are already set.
 
 The investigation agent does not query Prometheus, Elasticsearch, or Jaeger.
