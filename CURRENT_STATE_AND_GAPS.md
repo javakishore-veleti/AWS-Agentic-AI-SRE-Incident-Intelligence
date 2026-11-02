@@ -25,9 +25,9 @@ I've inspected the repository through your GitHub connection and compared the im
 | Customer portal | Implemented in code | Signup, signin, offer browsing, purchase, order history |
 | Latest 100 + search + pagination | Partial | Browser filtering happens after the latest 100 are fetched |
 | Professional light-themed UI | Implemented in CSS | Ivory, spruce, coral, teal |
-| LangGraph investigation service | Basic implementation | Health probes and rule-based assessment |
-| Evidence-based root-cause analysis | Not implemented | No log/metric/trace correlation in the agent |
-| LLM reasoning and model comparison | Not implemented | No LLM provider integration in the current agent |
+| LangGraph investigation service | Reads health and four telemetry sources | A hypothesis cites a retrieved row or stays inconclusive |
+| Evidence-based root-cause analysis | Partial | A shared trace id is named. A cause is not assigned from rows alone |
+| LLM reasoning and model comparison | Optional URL | No model is called when `INVESTIGATION_MODEL_URL` is unset |
 | AWS EKS / RDS deployment | Not implemented | No AWS provisioning or deployment configuration |
 | Automated incident experiments | Not found | No implemented fault-injection test suite |
 
@@ -43,7 +43,7 @@ flowchart TB
     D["Postgres"]
     E["Redis"]
     F["Telemetry"]
-    G["LangGraph Investigation Agent — Basic health probes only"]
+    G["LangGraph Investigation Agent — health plus four read-only sources"]
     A --> C
     B --> C
     C --> D
@@ -139,17 +139,15 @@ This was the original reason we started the repository: to test whether an advan
 
 I inspected `Middleware/investigation-agent/app/graph.py`.
 
-It has a working-looking LangGraph structure:
+The graph stages are `triage → collect → correlate → hypothesize → verify → recommend`.
 
-`triage → signals → assess → recommend`
-
-However, the current investigation consists primarily of querying `/actuator/health` for the five services.
+Collect reads `/actuator/health` and the four read-only telemetry sources. A missing URL is an evidence error and no rows. A hypothesis that does not cite a retrieved evidence id is marked unsupported. When `INVESTIGATION_MODEL_URL` is unset, no model is called. No live store and no model endpoint were called for this change.
 
 | Capability | Status |
 |---|---|
 | Basic health endpoint investigation | Implemented in code |
-| Logs, metrics, and traces investigation | Not implemented |
-| LLM-powered root-cause assessment | Not implemented |
+| Logs, metrics, and traces investigation | Read-only queries, with an error when a store is not configured |
+| LLM-powered root-cause assessment | Optional. A cause is not assigned unless retrieved rows are cited |
 | Real AWS incident investigation | Not implemented |
 
 The graph currently applies deterministic rules to service health signals. It does not call an LLM, query Prometheus or Jaeger, examine logs, correlate deployment changes, or validate root causes.
