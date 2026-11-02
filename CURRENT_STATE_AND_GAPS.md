@@ -221,6 +221,8 @@ Generate traffic and confirm API latency metrics in Prometheus, application erro
 
 *Exit criterion: Reproducible failure, captured evidence, and verified recovery.*
 
+`InventoryDelayTest` reserves once while `fault.response-delay-ms` is 300 and once after that value is removed. `PurchaseTraceTest` records an inventory client span that includes a 400ms response, then a later purchase whose inventory span is shorter. Orders times out an inventory read after 8 seconds. `CICD/Local/k6/inc-002-delay.js` was not run.
+
 ### 04 — Upgrade LangGraph to evidence-based incident investigation
 
 Add read-only Prometheus, Elasticsearch, Jaeger, and deployment-history tools. Introduce configurable LLM reasoning and structured, evidence-cited investigation reports.
