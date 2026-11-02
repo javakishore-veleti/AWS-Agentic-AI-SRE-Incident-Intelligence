@@ -60,6 +60,15 @@ class PurchaseTraceTest {
   }
 
   @Test
+  void inventoryDelayShowsOnTheClientSpanAndTheNextPurchaseIsFaster() throws Exception {
+    long slow = purchaseInventorySpan(400);
+    DownstreamServers.reset();
+    long fast = purchaseInventorySpan(0);
+    assertThat(slow).isGreaterThan(300_000_000L);
+    assertThat(fast).isLessThan(slow / 2);
+  }
+
+  @Test
   void inventoryFailureStaysOnThePurchaseTrace() throws Exception {
     UUID offerId = UUID.randomUUID();
     String[] header = new String[1];
@@ -111,6 +120,35 @@ class PurchaseTraceTest {
 
   private static String describe(List<SpanData> finished) {
     return finished.stream().map(span -> span.getName() + " " + span.getSpanId() + " parent=" + span.getParentSpanId()).toList().toString();
+  }
+
+  private long purchaseInventorySpan(long delayMs) throws Exception {
+    UUID customerId = UUID.randomUUID();
+    UUID offerId = UUID.randomUUID();
+    String[] header = new String[1];
+    stubOffer(offerId, request -> { });
+    DownstreamServers.server("inventoryClient")
+        .expect(requestTo("http://inventory.test/api/reservations"))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(request -> header[0] = request.getHeaders().getFirst("traceparent"))
+        .andRespond(request -> {
+          if (delayMs > 0) {
+            try {
+              Thread.sleep(delayMs);
+            } catch (InterruptedException ex) {
+              Thread.currentThread().interrupt();
+            }
+          }
+          return withNoContent().createResponse(request);
+        });
+    mvc.perform(post("/api/orders")
+            .header("Authorization", ShopperTokens.bearer(customerId, "Ada Lovelace", "ada@example.test"))
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"offerId\":\"" + offerId + "\"}"))
+        .andExpect(status().isCreated());
+    SpanData client = assertLinked(header[0], "inventory.test/api/reservations");
+    return client.getEndEpochNanos() - client.getStartEpochNanos();
   }
 
   private void stubOffer(UUID offerId, java.util.function.Consumer<HttpRequest> capture) {
