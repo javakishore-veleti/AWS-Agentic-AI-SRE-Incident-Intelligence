@@ -125,8 +125,10 @@ class OrderController {
   }
 
   @GetMapping("/{id}")
-  OrderResponse one(@PathVariable UUID id) {
-    return orders.get(id);
+  OrderResponse one(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
+      @PathVariable UUID id) {
+    return orders.get(authorization, id);
   }
 
   @PostMapping
@@ -246,8 +248,14 @@ class OrderService {
   }
 
   @Transactional(readOnly = true)
-  OrderResponse get(UUID id) {
-    return toResponse(load(id));
+  OrderResponse get(String authorization, UUID id) {
+    Claims claims = tokens.reader(authorization);
+    CustomerOrder order = load(id);
+    boolean admin = "ADMIN".equals(claims.get("role"));
+    if (!admin && !order.customerId.equals(UUID.fromString(claims.getSubject()))) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found.");
+    }
+    return toResponse(order);
   }
 
   @Transactional
@@ -381,6 +389,10 @@ class ShopperTokens {
 
   ShopperTokens(@Value("${security.jwt.secret}") String secret) {
     this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+  }
+
+  Claims reader(String header) {
+    return parseDesk(header);
   }
 
   void requireAdmin(String header) {

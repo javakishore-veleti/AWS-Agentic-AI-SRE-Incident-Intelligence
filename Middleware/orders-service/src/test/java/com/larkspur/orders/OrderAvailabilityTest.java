@@ -59,7 +59,7 @@ class OrderAvailabilityTest {
 
   @Test
   void unknownOrderIs404() throws Exception {
-    mvc.perform(get("/api/orders/" + UUID.randomUUID()))
+    mvc.perform(get("/api/orders/" + UUID.randomUUID()).header("Authorization", ShopperTokens.admin()))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.message").value("Order not found."));
   }
