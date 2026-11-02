@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.larkspur.testing.CommerceServiceTest;
+import com.larkspur.testing.ShopperTokens;
 import com.larkspur.testing.Datasets;
 import com.larkspur.testing.DownstreamServers;
 import com.larkspur.testing.EmbeddedRedis;
@@ -51,7 +52,7 @@ class OfferWriteErrorTest {
   @Test
   void endBeforeStartIs400() throws Exception {
     LocalDate today = LocalDate.now(ZoneOffset.UTC);
-    mvc.perform(post("/api/offers")
+    mvc.perform(post("/api/offers").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.offer(
                 "DATE-" + UUID.randomUUID().toString().substring(0, 8),
@@ -63,7 +64,7 @@ class OfferWriteErrorTest {
   @Test
   void repeatedProductIs400() throws Exception {
     UUID productId = UUID.randomUUID();
-    mvc.perform(post("/api/offers")
+    mvc.perform(post("/api/offers").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.offer(
                 "REP-" + UUID.randomUUID().toString().substring(0, 8),
@@ -78,7 +79,7 @@ class OfferWriteErrorTest {
     DownstreamServers.server("catalogRestClient")
         .expect(requestTo(org.hamcrest.Matchers.containsString("/api/products/lookup")))
         .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
-    mvc.perform(post("/api/offers")
+    mvc.perform(post("/api/offers").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.offer(
                 "MISS-" + UUID.randomUUID().toString().substring(0, 8),
@@ -92,7 +93,7 @@ class OfferWriteErrorTest {
     UUID first = UUID.randomUUID();
     UUID second = UUID.randomUUID();
     stubLookup(first);
-    MvcResult created = mvc.perform(post("/api/offers")
+    MvcResult created = mvc.perform(post("/api/offers").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.offer(
                 "UP-" + UUID.randomUUID().toString().substring(0, 8),
@@ -105,7 +106,7 @@ class OfferWriteErrorTest {
     DownstreamServers.server("catalogRestClient")
         .expect(requestTo(org.hamcrest.Matchers.containsString("/api/products/lookup")))
         .andRespond(withException(new ConnectException("down")));
-    mvc.perform(post("/api/offers")
+    mvc.perform(post("/api/offers").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.offer(
                 "DOWN-" + UUID.randomUUID().toString().substring(0, 8),
@@ -117,7 +118,7 @@ class OfferWriteErrorTest {
     DownstreamServers.server("catalogRestClient")
         .expect(requestTo(org.hamcrest.Matchers.containsString("/api/products/lookup")))
         .andRespond(withException(new ConnectException("down")));
-    mvc.perform(put("/api/offers/" + id)
+    mvc.perform(put("/api/offers/" + id).header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.offer(
                 "UP2-" + UUID.randomUUID().toString().substring(0, 8),
@@ -135,7 +136,7 @@ class OfferWriteErrorTest {
     DownstreamServers.server("catalogRestClient")
         .expect(requestTo(org.hamcrest.Matchers.containsString("/api/products/lookup")))
         .andRespond(withException(new ConnectException("down")));
-    mvc.perform(get("/api/offers"))
+    mvc.perform(get("/api/offers").header("Authorization", ShopperTokens.admin()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].id").exists())
         .andExpect(jsonPath("$[0].products").isEmpty());
@@ -146,13 +147,13 @@ class OfferWriteErrorTest {
     String code = "DUP-" + UUID.randomUUID().toString().substring(0, 8);
     UUID productId = UUID.randomUUID();
     stubLookup(productId);
-    mvc.perform(post("/api/offers")
+    mvc.perform(post("/api/offers").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.offer(code, "First", "ACTIVE", null, null, List.of(productId)))))
         .andExpect(status().isCreated());
     DownstreamServers.reset();
     stubLookup(productId);
-    mvc.perform(post("/api/offers")
+    mvc.perform(post("/api/offers").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.offer(code, "Second", "ACTIVE", null, null, List.of(productId)))))
         .andExpect(status().isConflict())

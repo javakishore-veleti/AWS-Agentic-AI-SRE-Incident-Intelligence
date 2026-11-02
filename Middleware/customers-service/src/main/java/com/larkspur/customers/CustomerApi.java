@@ -80,6 +80,7 @@ record CustomerResponse(
     String email,
     String phone,
     CustomerStatus status,
+    AccountRole role,
     java.time.Instant createdAt,
     java.time.Instant updatedAt) {}
 
@@ -96,29 +97,44 @@ class CustomerController {
 
   @GetMapping("/customers")
   List<CustomerResponse> latest(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
       @RequestParam(required = false) String name,
       @RequestParam(required = false) String email,
       @RequestParam(required = false) String status) {
+    customers.requireDesk(authorization);
     return customers.latest(name, email, status);
   }
 
   @GetMapping("/customers/{id}")
-  CustomerResponse one(@PathVariable UUID id) {
+  CustomerResponse one(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
+      @PathVariable UUID id) {
+    customers.requireDesk(authorization);
     return customers.get(id);
   }
 
   @PostMapping("/customers")
-  ResponseEntity<CustomerResponse> create(@Valid @RequestBody CustomerRequest request) {
+  ResponseEntity<CustomerResponse> create(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
+      @Valid @RequestBody CustomerRequest request) {
+    customers.requireDesk(authorization);
     return ResponseEntity.status(HttpStatus.CREATED).body(customers.create(request));
   }
 
   @PutMapping("/customers/{id}")
-  CustomerResponse update(@PathVariable UUID id, @Valid @RequestBody CustomerRequest request) {
+  CustomerResponse update(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
+      @PathVariable UUID id,
+      @Valid @RequestBody CustomerRequest request) {
+    customers.requireDesk(authorization);
     return customers.update(id, request);
   }
 
   @DeleteMapping("/customers/{id}")
-  ResponseEntity<Void> delete(@PathVariable UUID id) {
+  ResponseEntity<Void> delete(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
+      @PathVariable UUID id) {
+    customers.requireDesk(authorization);
     customers.delete(id);
     return ResponseEntity.noContent().build();
   }
@@ -149,6 +165,10 @@ class CustomerService {
     this.customers = customers;
     this.passwords = passwords;
     this.tokens = tokens;
+  }
+
+  void requireDesk(String authorization) {
+    tokens.requireAdmin(authorization);
   }
 
   List<CustomerResponse> latest(String name, String email, String status) {
@@ -243,6 +263,9 @@ class CustomerService {
     if (creating || (request.password() != null && !request.password().isBlank())) {
       customer.passwordHash = passwords.encode(request.password());
     }
+    if (creating && customer.role == null) {
+      customer.role = AccountRole.CUSTOMER;
+    }
   }
 
   private static void requirePassword(String password) {
@@ -258,6 +281,7 @@ class CustomerService {
         customer.email,
         customer.phone,
         customer.status,
+        customer.role == null ? AccountRole.CUSTOMER : customer.role,
         customer.createdAt,
         customer.updatedAt);
   }
@@ -277,10 +301,18 @@ class Tokens {
         .subject(customer.id.toString())
         .claim("email", customer.email)
         .claim("name", customer.fullName)
+        .claim("role", customer.role == null ? AccountRole.CUSTOMER.name() : customer.role.name())
         .issuedAt(Date.from(now))
         .expiration(Date.from(now.plus(Duration.ofHours(12))))
         .signWith(key)
         .compact();
+  }
+
+  void requireAdmin(String header) {
+    Object role = parse(header).get("role");
+    if (!"ADMIN".equals(role)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "An administrator must approve this request.");
+    }
   }
 
   Claims parse(String header) {

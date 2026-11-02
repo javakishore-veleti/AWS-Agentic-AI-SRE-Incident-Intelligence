@@ -4,9 +4,44 @@ const catalog = import.meta.env.VITE_CATALOG_API ?? "http://localhost:8081"
 const offers = import.meta.env.VITE_OFFERS_API ?? "http://localhost:8082"
 const customers = import.meta.env.VITE_CUSTOMERS_API ?? "http://localhost:8083"
 const orders = import.meta.env.VITE_ORDERS_API ?? "http://localhost:8084"
+const deskKey = "heddle.desk"
+
+export type DeskSession = { token: string; name: string; email: string }
+
+export function readDesk(): DeskSession | null {
+  const raw = sessionStorage.getItem(deskKey)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as DeskSession
+  } catch {
+    return null
+  }
+}
+
+export function writeDesk(session: DeskSession | null) {
+  if (session) sessionStorage.setItem(deskKey, JSON.stringify(session))
+  else sessionStorage.removeItem(deskKey)
+}
+
+export async function signInDesk(email: string, password: string): Promise<DeskSession> {
+  const result = await api<{ token: string; customer: { role: string; fullName: string; email: string } }>(
+    `${customers}/api/auth/signin`,
+    { method: "POST", body: JSON.stringify({ email, password }) },
+  )
+  if (result.customer.role !== "ADMIN") {
+    throw new Error("This desk is for administrators.")
+  }
+  const session = { token: result.token, name: result.customer.fullName, email: result.customer.email }
+  writeDesk(session)
+  return session
+}
 
 export async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
+  const desk = readDesk()
+  if (desk && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${desk.token}`)
+  }
   if (init?.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json")
   }

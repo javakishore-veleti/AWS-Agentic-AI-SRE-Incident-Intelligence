@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.larkspur.testing.CommerceServiceTest;
+import com.larkspur.testing.ShopperTokens;
 import com.larkspur.testing.Datasets;
 import com.larkspur.testing.DownstreamServers;
 import com.larkspur.testing.EmbeddedRedis;
@@ -48,7 +49,7 @@ class OfferQueryTest {
     UUID keptId = UUID.randomUUID();
     UUID droppedId = UUID.randomUUID();
     stubLookup(keptId);
-    MvcResult kept = mvc.perform(post("/api/offers")
+    MvcResult kept = mvc.perform(post("/api/offers").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.offer(
                 "ACT-" + UUID.randomUUID().toString().substring(0, 8),
@@ -57,7 +58,7 @@ class OfferQueryTest {
         .andReturn();
     DownstreamServers.reset();
     stubLookup(droppedId);
-    MvcResult dropped = mvc.perform(post("/api/offers")
+    MvcResult dropped = mvc.perform(post("/api/offers").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.offer(
                 "END-" + UUID.randomUUID().toString().substring(0, 8),
@@ -67,7 +68,7 @@ class OfferQueryTest {
     String keptOffer = json.readTree(kept.getResponse().getContentAsString()).get("id").asText();
     String droppedOffer = json.readTree(dropped.getResponse().getContentAsString()).get("id").asText();
 
-    mvc.perform(get("/api/offers"))
+    mvc.perform(get("/api/offers").header("Authorization", ShopperTokens.admin()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[?(@.id == '" + keptOffer + "')]").exists());
     mvc.perform(get("/api/offers/active"))
