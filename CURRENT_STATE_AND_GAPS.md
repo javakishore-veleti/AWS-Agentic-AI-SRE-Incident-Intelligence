@@ -184,9 +184,7 @@ Before AWS deployment, secrets need external management, and authentication/sess
 
 ### High priority — Testing and CI/CD
 
-I found a unit test for the shared observability configuration, but no comprehensive service integration tests, complete purchase-flow tests, fault-injection suite, or GitHub Actions workflow.
-
-GitHub currently reports zero workflow runs. We therefore have no CI evidence that the complete application builds and passes tests.
+`.github/workflows/ci.yaml` runs on pull requests to `develop` and `main`. It runs `mvn -B test` for the Java 21 services, loads the investigation agent, and builds both portals. The ruleset `Require CI checks` requires Middleware, Investigation agent, Portals (agentic-ai-admin), and Portals (ecommerce-portal). A failed or missing check blocks the merge. A fault-injection suite is still absent.
 
 One additional security issue: `GET /api/orders/{id}` is not scoped to the authenticated customer. Even though the storefront uses `/api/orders/mine`, direct object access still needs authorization.
 
