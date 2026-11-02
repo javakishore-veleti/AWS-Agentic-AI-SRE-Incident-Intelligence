@@ -108,6 +108,17 @@ Exporter choice is `observability.metrics.exporter`, `observability.logs.exporte
 
 The investigation agent does not query Prometheus, Elasticsearch, or Jaeger.
 
+## Pull request checks
+
+`.github/workflows/ci.yaml` runs on pull requests and pushes to `develop` and `main`. The ruleset `Require CI checks` requires these checks on both branches. A failed or missing check blocks the merge. A passing check is enough.
+
+| Check | Command |
+|---|---|
+| Middleware | Java 21, `mvn -B test` in `Middleware` |
+| Investigation agent | Install requirements and import `app.main` |
+| Portals (agentic-ai-admin) | `npm ci` and `npm run build` |
+| Portals (ecommerce-portal) | `npm ci` and `npm run build` |
+
 ## Local operations
 
 ```bash
