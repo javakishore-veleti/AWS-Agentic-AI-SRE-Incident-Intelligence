@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from app.contracts import ReportContract
+from app.rubric import score_report
 from app.graph import SERVICES, build_graph
 from app.guardrails import record_approval
 
@@ -64,6 +65,7 @@ def investigate(request: InvestigationRequest) -> dict:
         "modelId": result["model_id"],
     }
     ReportContract.model_validate(payload).checked()
+    payload["quality"] = score_report(payload)
     return payload
 
 
