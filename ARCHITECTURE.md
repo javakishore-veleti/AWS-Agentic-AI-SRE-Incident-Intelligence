@@ -69,7 +69,7 @@ Desk list routes apply optional filters, sort newest first, and return at most 1
 
 Offer writes require a non-empty `productIds` list. The service checks those ids with the catalog and rejects duplicates. Responses include `productIds` and product summaries. Sort for catalog, offers, and customers is `createdAt` descending. Orders sort by `placedAt` descending. Stock sorts by `updatedAt` descending and is keyed by SKU.
 
-`PUT /api/orders/{id}` accepts `status` and `note`. `POST /api/reservations` accepts `orderRef` and `lines` of `{ sku, qty }`. Inventory sleeps for `FAULT_DELAY_MS` milliseconds before reserving when that value is greater than zero. The default is `0`.
+`PUT /api/orders/{id}` accepts `status` and `note`. `POST /api/reservations` accepts `orderRef` and `lines` of `{ sku, qty }`. Inventory reads `fault.response-delay-ms` (`FAULT_DELAY_MS`, default `0`) on each reservation and sleeps that many milliseconds when it is greater than zero. Orders reads inventory with an 8 second timeout. `InventoryDelayTest` reserves once at 300ms and once after that value is removed. `PurchaseTraceTest` records an inventory client span that includes a 400ms response, then a later purchase whose inventory span is shorter. `CICD/Local/k6/inc-002-delay.js` is the matching load profile. It was not run.
 
 Passwords are bcrypt hashed. `GET /api/auth/me` requires the bearer token. The token includes `role`. Signup sets `CUSTOMER`. The customers seed adds `desk@heddle.example` with `ADMIN` when that email is absent. The password is the local demo password already defined on `CustomerSeed`.
 

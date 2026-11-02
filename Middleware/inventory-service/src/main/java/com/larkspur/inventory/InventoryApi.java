@@ -12,7 +12,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -88,15 +88,15 @@ class InventoryController {
 class InventoryService {
   private final StockRepository stock;
   private final ReservationRepository reservations;
-  private final long delayMs;
+  private final Environment environment;
 
   InventoryService(
       StockRepository stock,
       ReservationRepository reservations,
-      @Value("${fault.response-delay-ms:0}") long delayMs) {
+      Environment environment) {
     this.stock = stock;
     this.reservations = reservations;
-    this.delayMs = delayMs;
+    this.environment = environment;
   }
 
   List<StockResponse> latest() {
@@ -182,11 +182,12 @@ class InventoryService {
   }
 
   private void pause() {
-    if (delayMs <= 0) {
+    long delay = environment.getProperty("fault.response-delay-ms", Long.class, 0L);
+    if (delay <= 0) {
       return;
     }
     try {
-      Thread.sleep(delayMs);
+      Thread.sleep(delay);
     } catch (InterruptedException ex) {
       Thread.currentThread().interrupt();
     }
