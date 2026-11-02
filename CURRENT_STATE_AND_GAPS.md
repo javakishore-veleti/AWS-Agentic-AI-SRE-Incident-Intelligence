@@ -127,7 +127,7 @@ npm run local:portals:all:stop
 
 There are also commands for starting and stopping middleware and portals together.
 
-Your microservices expose Actuator metrics for Prometheus. Each service test reads `/actuator/prometheus` and requires the HTTP latency histogram, an error status, and `hikaricp_connections`. A failed catalog request writes a JSON log with `correlationId` and `service`, and that line does not contain the bearer token. The same JSON is what Logstash sends to Elasticsearch. They have OTLP trace exporter configuration for Jaeger.
+Your microservices expose Actuator metrics for Prometheus. Each service test reads `/actuator/prometheus` and requires the HTTP latency histogram, an error status, and `hikaricp_connections`. A failed catalog request writes a JSON log with `correlationId` and `service`, and that line does not contain the bearer token. The same JSON is what Logstash sends to Elasticsearch. A purchase test links the orders server span to the offers and inventory client spans on one trace, including an inventory error. Jaeger itself was not queried.
 
 **What has not been verified:** Whether all Docker containers become healthy, whether the Java services compile and start together, and whether metrics, logs, and traces actually arrive in the corresponding dashboards.
 
