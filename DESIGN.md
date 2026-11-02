@@ -18,10 +18,10 @@ Routes in `Portals/ecommerce-portal` (Vite on port 5174): `/offers`, `/offers/:i
 
 - Sign up and sign in call the customers service. The shop stores the returned token in `sessionStorage` under `heddle.session`. A token left in `localStorage` under that key is removed and is not reused.
 - The offer list loads `GET /api/offers/active`, then filters by offer name, product name, and maximum price in the browser.
-- Offer detail shows the offer and its products. Purchase sends `POST /api/orders` with `Authorization: Bearer <token>` and `{ "offerId" }`. The client does not send a price, a customer id, or a quantity.
+- Offer detail shows the offer and its products. Purchase sends `POST /api/orders` with `Authorization: Bearer <token>`, an `Idempotency-Key`, and `{ "offerId" }`. The client does not send a price, a customer id, or a quantity. The same key is sent again when inventory is unreachable.
 - Order history loads `GET /api/orders/mine` with the same bearer token. Date filters compare `placedAt` to the browser's local calendar day. Both the from day and the to day are inclusive. Pagination is client-side.
 
-There is no payment step and no idempotency key. Submitting purchase again creates another order.
+There is no payment step. A second click after a placed order uses a new idempotency key and creates another order. A retry of the same key does not.
 
 ## What the desk does today
 

@@ -77,6 +77,7 @@ class OrderOfferLookupTest {
   private ResultActions purchase(UUID offerId) throws Exception {
     return mvc.perform(post("/api/orders")
         .header("Authorization", ShopperTokens.bearer(UUID.randomUUID(), "Ada Lovelace", "ada@example.test"))
+        .header("Idempotency-Key", UUID.randomUUID().toString())
         .contentType(MediaType.APPLICATION_JSON)
         .content("{\"offerId\":\"" + offerId + "\"}"));
   }

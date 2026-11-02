@@ -2,7 +2,7 @@ export type ProductStatus = "ACTIVE" | "DISCONTINUED"
 export type OfferStatus = "DRAFT" | "ACTIVE" | "EXPIRED"
 export type CustomerStatus = "ACTIVE" | "SUSPENDED"
 export type AccountRole = "CUSTOMER" | "ADMIN"
-export type OrderStatus = "PLACED" | "CONFIRMED" | "FULFILLED" | "CANCELLED"
+export type OrderStatus = "RESERVING" | "RESERVATION_FAILED" | "PLACED" | "CONFIRMED" | "FULFILLED" | "CANCELLED"
 
 export type Product = {
   id: string

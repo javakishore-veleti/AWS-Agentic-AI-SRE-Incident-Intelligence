@@ -12,6 +12,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -19,6 +20,8 @@ import java.util.List;
 import java.util.UUID;
 
 enum OrderStatus {
+  RESERVING,
+  RESERVATION_FAILED,
   PLACED,
   CONFIRMED,
   FULFILLED,
@@ -38,7 +41,10 @@ class OrderLine {
 }
 
 @Entity
-@Table(name = "customer_orders")
+@Table(
+    name = "customer_orders",
+    uniqueConstraints =
+        @UniqueConstraint(name = "uk_order_customer_idempotency", columnNames = {"customer_id", "idempotency_key"}))
 class CustomerOrder {
   @Id
   UUID id;
@@ -48,6 +54,12 @@ class CustomerOrder {
 
   @Column(nullable = false)
   UUID customerId;
+
+  @Column(name = "idempotency_key", length = 80)
+  String idempotencyKey;
+
+  @Column(length = 500)
+  String failureMessage;
 
   @Column(nullable = false, length = 140)
   String customerName;

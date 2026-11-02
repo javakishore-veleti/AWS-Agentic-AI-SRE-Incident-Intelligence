@@ -14,9 +14,11 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -28,6 +30,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -47,6 +50,8 @@ interface OrderRepository extends JpaRepository<CustomerOrder, UUID> {
   List<CustomerOrder> findTop100ByOrderByPlacedAtDesc();
 
   List<CustomerOrder> findTop100ByCustomerIdOrderByPlacedAtDesc(UUID customerId);
+
+  java.util.Optional<CustomerOrder> findByCustomerIdAndIdempotencyKey(UUID customerId, String idempotencyKey);
 
   @Query("""
       select o from CustomerOrder o
@@ -69,6 +74,10 @@ interface OrderRepository extends JpaRepository<CustomerOrder, UUID> {
 }
 
 record PurchaseRequest(@NotNull UUID offerId) {}
+
+record PurchaseResult(HttpStatus status, OrderResponse order) {}
+
+record PendingReservation(UUID id, String orderNumber, List<ReserveLine> lines) {}
 
 record OrderUpdateRequest(@NotNull OrderStatus status, String note) {}
 
@@ -134,8 +143,10 @@ class OrderController {
   @PostMapping
   ResponseEntity<OrderResponse> purchase(
       @RequestHeader(name = "Authorization", required = false) String authorization,
+      @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
       @Valid @RequestBody PurchaseRequest request) {
-    return ResponseEntity.status(HttpStatus.CREATED).body(orders.purchase(authorization, request.offerId()));
+    PurchaseResult result = orders.purchase(authorization, idempotencyKey, request.offerId());
+    return ResponseEntity.status(result.status()).body(result.order());
   }
 
   @PutMapping("/{id}")
@@ -163,16 +174,19 @@ class OrderService {
   private final RestClient offers;
   private final RestClient inventory;
   private final ShopperTokens tokens;
+  private final TransactionTemplate transactions;
 
   OrderService(
       OrderRepository orders,
       @Qualifier("offersClient") RestClient offers,
       @Qualifier("inventoryClient") RestClient inventory,
-      ShopperTokens tokens) {
+      ShopperTokens tokens,
+      TransactionTemplate transactions) {
     this.orders = orders;
     this.offers = offers;
     this.inventory = inventory;
     this.tokens = tokens;
+    this.transactions = transactions;
   }
 
   void requireDesk(String authorization) {
@@ -258,9 +272,17 @@ class OrderService {
     return toResponse(order);
   }
 
-  @Transactional
-  OrderResponse purchase(String authorization, UUID offerId) {
+  PurchaseResult purchase(String authorization, String idempotencyKey, UUID offerId) {
     Claims claims = tokens.parse(authorization);
+    String key = idempotencyKey == null ? "" : idempotencyKey.trim();
+    if (key.isEmpty() || key.length() > 80) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Send an Idempotency-Key header.");
+    }
+    UUID customerId = UUID.fromString(claims.getSubject());
+    Optional<CustomerOrder> existing = orders.findByCustomerIdAndIdempotencyKey(customerId, key);
+    if (existing.isPresent()) {
+      return resume(existing.get());
+    }
     RemoteOffer offer = loadOffer(offerId);
     if (!"ACTIVE".equals(offer.status())) {
       throw new ResponseStatusException(HttpStatus.CONFLICT, "This offer is not available to purchase.");
@@ -270,13 +292,14 @@ class OrderService {
     }
     CustomerOrder order = new CustomerOrder();
     order.orderNumber = "HD-" + Long.toString(System.currentTimeMillis(), 36).toUpperCase();
-    order.customerId = UUID.fromString(claims.getSubject());
+    order.customerId = customerId;
     order.customerName = String.valueOf(claims.get("name"));
     order.customerEmail = String.valueOf(claims.get("email"));
     order.offerId = offer.id();
     order.offerName = offer.name();
     order.totalAmount = offer.offerPrice();
-    order.status = OrderStatus.PLACED;
+    order.status = OrderStatus.RESERVING;
+    order.idempotencyKey = key;
     order.note = "";
     order.lines = new ArrayList<>();
     for (RemoteProduct product : offer.products()) {
@@ -288,29 +311,77 @@ class OrderService {
       line.unitPrice = product.unitPrice();
       order.lines.add(line);
     }
-    CustomerOrder saved = orders.saveAndFlush(order);
+    PendingReservation saved;
+    try {
+      saved = transactions.execute(status -> remember(orders.saveAndFlush(order)));
+    } catch (DataIntegrityViolationException ex) {
+      return resume(orders.findByCustomerIdAndIdempotencyKey(customerId, key)
+          .orElseThrow(() -> new ResponseStatusException(
+              HttpStatus.CONFLICT, "This purchase is already in progress. Retry with the same Idempotency-Key.")));
+    }
+    return reserve(saved);
+  }
+
+  private PurchaseResult resume(CustomerOrder order) {
+    OrderStatus state = transactions.execute(status -> load(order.id).status);
+    if (state == OrderStatus.RESERVING) {
+      return reserve(transactions.execute(status -> remember(load(order.id))));
+    }
+    if (state == OrderStatus.RESERVATION_FAILED) {
+      String message = transactions.execute(status -> {
+        String stored = load(order.id).failureMessage;
+        return stored == null || stored.isBlank() ? "Inventory could not reserve this offer." : stored;
+      });
+      throw new ResponseStatusException(HttpStatus.CONFLICT, message);
+    }
+    return transactions.execute(status -> new PurchaseResult(HttpStatus.OK, toResponse(load(order.id))));
+  }
+
+  private PurchaseResult reserve(PendingReservation saved) {
     try {
       inventory.post()
           .uri("/api/reservations")
-          .body(new ReserveRequest(
-              saved.orderNumber,
-              saved.lines.stream().map(line -> new ReserveLine(line.sku, line.quantity)).toList()))
+          .body(new ReserveRequest(saved.orderNumber(), saved.lines()))
           .retrieve()
           .toBodilessEntity();
     } catch (RestClientResponseException ex) {
-      orders.delete(saved);
-      String message = "Inventory could not reserve this offer.";
       if (ex.getStatusCode().value() == 409) {
-        message = ex.getResponseBodyAsString().contains("message")
-            ? readMessage(ex.getResponseBodyAsString())
-            : message;
+        String message = "Inventory could not reserve this offer.";
+        if (ex.getResponseBodyAsString().contains("message")) {
+          message = readMessage(ex.getResponseBodyAsString());
+        }
+        rememberFailure(saved.id(), message);
+        throw new ResponseStatusException(HttpStatus.CONFLICT, message);
       }
-      throw new ResponseStatusException(HttpStatus.CONFLICT, message);
+      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Inventory service is unreachable.");
     } catch (RestClientException ex) {
-      orders.delete(saved);
       throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Inventory service is unreachable.");
     }
-    return toResponse(saved);
+    return transactions.execute(status -> {
+      CustomerOrder current = load(saved.id());
+      if (current.status == OrderStatus.RESERVING) {
+        current.status = OrderStatus.PLACED;
+        current.failureMessage = null;
+        orders.save(current);
+        return new PurchaseResult(HttpStatus.CREATED, toResponse(current));
+      }
+      return new PurchaseResult(HttpStatus.OK, toResponse(current));
+    });
+  }
+
+  private PendingReservation remember(CustomerOrder order) {
+    List<ReserveLine> lines = order.lines.stream().map(line -> new ReserveLine(line.sku, line.quantity)).toList();
+    return new PendingReservation(order.id, order.orderNumber, lines);
+  }
+
+  private void rememberFailure(UUID id, String message) {
+    String stored = message.length() > 500 ? message.substring(0, 500) : message;
+    transactions.executeWithoutResult(status -> {
+      CustomerOrder order = load(id);
+      order.status = OrderStatus.RESERVATION_FAILED;
+      order.failureMessage = stored;
+      orders.save(order);
+    });
   }
 
   @Transactional

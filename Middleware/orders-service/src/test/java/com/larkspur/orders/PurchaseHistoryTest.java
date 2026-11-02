@@ -49,6 +49,7 @@ class PurchaseHistoryTest {
 
     mvc.perform(post("/api/orders")
             .header("Authorization", token)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .content("{\"offerId\":\"" + offerId + "\"}"))
         .andExpect(status().isCreated())
