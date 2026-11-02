@@ -127,7 +127,7 @@ npm run local:portals:all:stop
 
 There are also commands for starting and stopping middleware and portals together.
 
-Your microservices expose Actuator metrics for Prometheus, can send application logs to Logstash, and have OTLP trace exporter configuration for Jaeger.
+Your microservices expose Actuator metrics for Prometheus. Each service test reads `/actuator/prometheus` and requires the HTTP latency histogram, an error status, and `hikaricp_connections`. They can send application logs to Logstash, and have OTLP trace exporter configuration for Jaeger.
 
 **What has not been verified:** Whether all Docker containers become healthy, whether the Java services compile and start together, and whether metrics, logs, and traces actually arrive in the corresponding dashboards.
 

@@ -92,7 +92,7 @@ Still to build. Do not document these as present:
 
 ## Observability today
 
-Each Java service exposes Actuator `health`, `info`, `prometheus`, and `metrics`, and depends on Micrometer. `CICD/Local/Prometheus/prometheus.yml` scrapes `host.docker.internal:8081` through `8085` at `/actuator/prometheus`.
+Each Java service exposes Actuator `health`, `info`, `prometheus`, and `metrics`, and depends on Micrometer. `CICD/Local/Prometheus/prometheus.yml` scrapes `host.docker.internal:8081` through `8085` at `/actuator/prometheus`. HTTP latency is `histogram_quantile(0.95, sum by (le, application) (rate(http_server_requests_seconds_bucket[5m])))`. The error count is `http_server_requests_seconds_count` filtered by `status`. Pool size is `hikaricp_connections`. A test in each service reads `/actuator/prometheus` and requires those series.
 
 Exporter choice is `observability.metrics.exporter`, `observability.logs.exporter`, and `observability.traces.exporter`, overridable with `OBSERVABILITY_METRICS_EXPORTER`, `OBSERVABILITY_LOGS_EXPORTER`, and `OBSERVABILITY_TRACES_EXPORTER`.
 
