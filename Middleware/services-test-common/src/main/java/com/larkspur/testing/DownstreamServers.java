@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.http.client.BufferingClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpResponse;
@@ -23,6 +24,10 @@ public final class DownstreamServers {
   }
 
   public static RestClient bind(String name) {
+    return bind(name, null);
+  }
+
+  public static RestClient bind(String name, ObservationRegistry observations) {
     String base = switch (name) {
       case "offersClient" -> "http://offers.test";
       case "catalogRestClient" -> "http://catalog.test";
@@ -34,6 +39,9 @@ public final class DownstreamServers {
         .requestFactory(new BufferingClientHttpRequestFactory(new SimpleClientHttpRequestFactory()));
     MockRestServiceServer server = MockRestServiceServer.bindTo(builder)
         .build(new RuntimeFailureExpectationManager());
+    if (observations != null) {
+      builder.observationRegistry(observations);
+    }
     SERVERS.put(name, server);
     return builder.build();
   }
