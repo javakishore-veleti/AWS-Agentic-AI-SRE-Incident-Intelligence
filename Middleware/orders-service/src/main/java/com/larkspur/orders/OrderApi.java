@@ -106,6 +106,8 @@ record ReserveLine(String sku, int qty) {}
 
 record ReserveRequest(String orderRef, List<ReserveLine> lines) {}
 
+record ReleaseRequest(String orderRef) {}
+
 @RestController
 @RequestMapping("/api/orders")
 class OrderController {
@@ -162,8 +164,7 @@ class OrderController {
   ResponseEntity<Void> delete(
       @RequestHeader(name = "Authorization", required = false) String authorization,
       @PathVariable UUID id) {
-    orders.requireDesk(authorization);
-    orders.delete(id);
+    orders.cancel(authorization, id);
     return ResponseEntity.noContent().build();
   }
 }
@@ -175,18 +176,21 @@ class OrderService {
   private final RestClient inventory;
   private final ShopperTokens tokens;
   private final TransactionTemplate transactions;
+  private final OrderCancellationRepository cancellations;
 
   OrderService(
       OrderRepository orders,
       @Qualifier("offersClient") RestClient offers,
       @Qualifier("inventoryClient") RestClient inventory,
       ShopperTokens tokens,
-      TransactionTemplate transactions) {
+      TransactionTemplate transactions,
+      OrderCancellationRepository cancellations) {
     this.orders = orders;
     this.offers = offers;
     this.inventory = inventory;
     this.tokens = tokens;
     this.transactions = transactions;
+    this.cancellations = cancellations;
   }
 
   void requireDesk(String authorization) {
@@ -392,12 +396,39 @@ class OrderService {
     return toResponse(orders.save(order));
   }
 
-  @Transactional
-  void delete(UUID id) {
-    if (!orders.existsById(id)) {
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found.");
+  void cancel(String authorization, UUID id) {
+    Claims claims = tokens.reader(authorization);
+    tokens.requireAdmin(authorization);
+    CustomerOrder order = transactions.execute(status -> load(id));
+    if (order.status == OrderStatus.CANCELLED) {
+      return;
     }
-    orders.deleteById(id);
+    try {
+      inventory.post()
+          .uri("/api/reservations/release")
+          .body(new ReleaseRequest(order.orderNumber))
+          .retrieve()
+          .toBodilessEntity();
+    } catch (RestClientException ex) {
+      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Inventory service is unreachable.");
+    }
+    String actor = claims.getSubject();
+    String email = claims.get("email") == null ? "" : String.valueOf(claims.get("email"));
+    transactions.executeWithoutResult(status -> {
+      CustomerOrder current = load(id);
+      if (current.status == OrderStatus.CANCELLED || cancellations.findByOrderId(current.id).isPresent()) {
+        return;
+      }
+      OrderCancellation audit = new OrderCancellation();
+      audit.orderId = current.id;
+      audit.orderNumber = current.orderNumber;
+      audit.previousStatus = current.status;
+      audit.actorId = UUID.fromString(actor);
+      audit.actorEmail = email;
+      cancellations.save(audit);
+      current.status = OrderStatus.CANCELLED;
+      orders.save(current);
+    });
   }
 
   private RemoteOffer loadOffer(UUID offerId) {

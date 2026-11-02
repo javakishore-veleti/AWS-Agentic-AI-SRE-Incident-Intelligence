@@ -101,7 +101,7 @@ There are still important issues:
 - A repeated purchase request can create duplicate orders because idempotency is not implemented.
 - There is no payment processing or simulated payment workflow.
 - A failed inventory reservation causes the new order to be deleted rather than following a durable, recoverable order workflow.
-- Order cancellation currently removes records rather than preserving an auditable order history.
+- An administrator cancellation keeps the order, records one audit row, and asks inventory to release the reservation.
 
 For a local demonstration, the workflow is meaningful. For enterprise-grade order processing, these issues need attention.
 
@@ -166,7 +166,7 @@ Desk list and write routes for products, offers, customers, and orders require a
 
 ### High priority — Order and inventory consistency
 
-`POST /api/orders` requires an `Idempotency-Key`. The order is committed as `RESERVING` before inventory is called. A definite rejection stays on the row as `RESERVATION_FAILED`. An unreachable inventory call leaves `RESERVING`, and the same key finishes that reservation. Inventory remembers `orderRef` and does not reserve the same order twice. The databases are still separate. Releasing stock when an order is cancelled is still open.
+`POST /api/orders` requires an `Idempotency-Key`. The order is committed as `RESERVING` before inventory is called. A definite rejection stays on the row as `RESERVATION_FAILED`. An unreachable inventory call leaves `RESERVING`, and the same key finishes that reservation. Inventory remembers `orderRef` and does not reserve the same order twice. The databases are still separate. Cancellation asks inventory to release the reservation for that order number.
 
 ### High priority — Secrets and customer session handling
 

@@ -34,6 +34,8 @@ record ReserveLine(@NotBlank String sku, @Min(1) int qty) {}
 
 record ReserveRequest(@NotBlank String orderRef, @NotEmpty List<@Valid ReserveLine> lines) {}
 
+record ReleaseRequest(@NotBlank String orderRef) {}
+
 @Entity
 @Table(name = "reservations")
 class HeldReservation {
@@ -72,6 +74,12 @@ class InventoryController {
   @PostMapping("/reservations")
   ResponseEntity<Void> reserve(@Valid @RequestBody ReserveRequest request) {
     inventory.reserve(request);
+    return ResponseEntity.noContent().build();
+  }
+
+  @PostMapping("/reservations/release")
+  ResponseEntity<Void> release(@Valid @RequestBody ReleaseRequest request) {
+    inventory.release(request.orderRef());
     return ResponseEntity.noContent().build();
   }
 }
@@ -141,6 +149,28 @@ class InventoryService {
     created.fingerprint = fingerprint;
     created.createdAt = Instant.now();
     reservations.save(created);
+  }
+
+  @Transactional
+  void release(String orderRef) {
+    Optional<HeldReservation> held = reservations.findById(orderRef);
+    if (held.isEmpty()) {
+      return;
+    }
+    for (String part : held.get().fingerprint.split("\\|")) {
+      int colon = part.lastIndexOf(':');
+      if (colon <= 0) {
+        continue;
+      }
+      String sku = part.substring(0, colon);
+      int qty = Integer.parseInt(part.substring(colon + 1));
+      StockItem item = stock.findForUpdate(sku)
+          .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "No stock record for " + sku + "."));
+      item.availableQty += qty;
+      item.reservedQty = Math.max(0, item.reservedQty - qty);
+      item.updatedAt = Instant.now();
+    }
+    reservations.delete(held.get());
   }
 
   private static String fingerprint(ReserveRequest request) {
