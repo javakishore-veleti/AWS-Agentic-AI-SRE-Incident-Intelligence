@@ -1,0 +1,65 @@
+name: AWS-102-Deploy-Investigation-Agent
+
+"on":
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [dev, stage]
+        default: dev
+      dry_run:
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      dry_run:
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: aws-102-deploy-investigation-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Build and apply the investigation agent, or stop when dry_run is true
+        env:
+          ENV: ${{ inputs.environment }}
+          DRY: ${{ inputs.dry_run }}
+          EXPECTED_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          EXPECTED_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          account="$(aws sts get-caller-identity --query Account --output text)"
+          if [ "$account" != "$EXPECTED_ACCOUNT" ]; then
+            echo "The caller account does not match AWS_ACCOUNT_ID."
+            exit 1
+          fi
+          if [ "$DRY" = "true" ]; then
+            echo "Dry run only. The investigation image was not built."
+            exit 0
+          fi
+          aws eks update-kubeconfig --name "heddle-${ENV}" --region "$EXPECTED_REGION"
+          aws ecr get-login-password --region "$EXPECTED_REGION" | docker login --username AWS --password-stdin "${account}.dkr.ecr.${EXPECTED_REGION}.amazonaws.com"
+          uri="$(aws cloudformation describe-stacks --stack-name "heddle-${ENV}-003-ecr" --query "Stacks[0].Outputs[?OutputKey=='InvestigationRepositoryUri'].OutputValue" --output text)"
+          docker build -f CICD/AWS/docker/investigation.Dockerfile -t "${uri}:latest" .
+          docker push "${uri}:latest"
+          rendered="$(mktemp)"
+          sed "s#heddle-investigation-agent:local#${uri}:latest#" CICD/AWS/kubernetes/portals-and-agent.yaml > "$rendered"
+          kubectl apply -f "$rendered"
+          rm -f "$rendered"
