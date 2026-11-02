@@ -1,9 +1,11 @@
+import type { InvestigationReport } from "./report"
 import type { Customer, Offer, Product, ShopOrder } from "./types"
 
 const catalog = import.meta.env.VITE_CATALOG_API ?? "http://localhost:8081"
 const offers = import.meta.env.VITE_OFFERS_API ?? "http://localhost:8082"
 const customers = import.meta.env.VITE_CUSTOMERS_API ?? "http://localhost:8083"
 const orders = import.meta.env.VITE_ORDERS_API ?? "http://localhost:8084"
+const investigation = import.meta.env.VITE_INVESTIGATION_API ?? "http://127.0.0.1:8090"
 const deskKey = "heddle.desk"
 
 export type DeskSession = { token: string; name: string; email: string }
@@ -108,3 +110,16 @@ export const loadOrders = (criteria: { customer: string; email: string; offer: s
 export const saveOrder = (id: string, body: unknown) =>
   api<ShopOrder>(`${orders}/api/orders/${id}`, { method: "PUT", body: JSON.stringify(body) })
 export const removeOrder = (id: string) => api<void>(`${orders}/api/orders/${id}`, { method: "DELETE" })
+
+export async function runInvestigation(service: string): Promise<InvestigationReport> {
+  const response = await fetch(`${investigation}/api/investigations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ service }),
+  })
+  const text = await response.text()
+  if (!response.ok) {
+    throw new Error(`Investigation failed (${response.status})`)
+  }
+  return JSON.parse(text) as InvestigationReport
+}
