@@ -55,6 +55,9 @@ p { margin: 0; }
   box-shadow: 0 10px 22px rgba(228, 84, 124, 0.28);
 }
 .sidebar-foot { margin-top: auto; padding: 12px; color: #f6c9a2; font-size: 13px; }
+.sidebar-foot .text-btn { color: #fff6ee; padding-left: 0; }
+.sign-in { display: grid; place-items: center; min-height: 100vh; }
+.sign-in-card { width: min(420px, 100%); padding: 22px; display: grid; gap: 12px; }
 
 .canvas { padding: 22px 28px 40px; }
 .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }

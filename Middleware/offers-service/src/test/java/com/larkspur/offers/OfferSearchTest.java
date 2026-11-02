@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.larkspur.testing.CommerceServiceTest;
+import com.larkspur.testing.ShopperTokens;
 import com.larkspur.testing.EmbeddedRedis;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -35,11 +36,11 @@ class OfferSearchTest {
       offers.save(offer("NEW-" + index, "Newer " + index, Instant.now()));
     }
 
-    mvc.perform(get("/api/offers"))
+    mvc.perform(get("/api/offers").header("Authorization", ShopperTokens.admin()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[?(@.name == 'Older Match')]").isEmpty());
 
-    mvc.perform(get("/api/offers").param("code", "old-match"))
+    mvc.perform(get("/api/offers").header("Authorization", ShopperTokens.admin()).param("code", "old-match"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].name").value("Older Match"))
         .andExpect(jsonPath("$.length()").value(1));

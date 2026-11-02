@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -71,17 +72,21 @@ record OfferResponse(
 @RequestMapping("/api/offers")
 class OfferController {
   private final OfferService offers;
+  private final AdminGate desk;
 
-  OfferController(OfferService offers) {
+  OfferController(OfferService offers, AdminGate desk) {
     this.offers = offers;
+    this.desk = desk;
   }
 
   @GetMapping
   List<OfferResponse> latest(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
       @RequestParam(required = false) String name,
       @RequestParam(required = false) String code,
       @RequestParam(required = false) String product,
       @RequestParam(required = false) String status) {
+    desk.require(authorization);
     return offers.latest(name, code, product, status);
   }
 
@@ -96,17 +101,27 @@ class OfferController {
   }
 
   @PostMapping
-  ResponseEntity<OfferResponse> create(@Valid @RequestBody OfferRequest request) {
+  ResponseEntity<OfferResponse> create(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
+      @Valid @RequestBody OfferRequest request) {
+    desk.require(authorization);
     return ResponseEntity.status(HttpStatus.CREATED).body(offers.create(request));
   }
 
   @PutMapping("/{id}")
-  OfferResponse update(@PathVariable UUID id, @Valid @RequestBody OfferRequest request) {
+  OfferResponse update(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
+      @PathVariable UUID id,
+      @Valid @RequestBody OfferRequest request) {
+    desk.require(authorization);
     return offers.update(id, request);
   }
 
   @DeleteMapping("/{id}")
-  ResponseEntity<Void> delete(@PathVariable UUID id) {
+  ResponseEntity<Void> delete(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
+      @PathVariable UUID id) {
+    desk.require(authorization);
     offers.delete(id);
     return ResponseEntity.noContent().build();
   }

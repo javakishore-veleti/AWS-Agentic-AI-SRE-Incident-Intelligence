@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.larkspur.testing.CommerceServiceTest;
+import com.larkspur.testing.ShopperTokens;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -25,11 +26,11 @@ class OrderSearchTest {
       orders.save(order("Newer " + index, Instant.now()));
     }
 
-    mvc.perform(get("/api/orders"))
+    mvc.perform(get("/api/orders").header("Authorization", ShopperTokens.admin()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[?(@.customerName == 'Older Match')]").isEmpty());
 
-    mvc.perform(get("/api/orders").param("customer", "older match").param("from", "2020-06-15").param("to", "2020-06-15"))
+    mvc.perform(get("/api/orders").header("Authorization", ShopperTokens.admin()).param("customer", "older match").param("from", "2020-06-15").param("to", "2020-06-15"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].customerName").value("Older Match"))
         .andExpect(jsonPath("$.length()").value(1));
@@ -37,7 +38,7 @@ class OrderSearchTest {
 
   @Test
   void unknownDateIs400() throws Exception {
-    mvc.perform(get("/api/orders").param("from", "15-06-2020"))
+    mvc.perform(get("/api/orders").header("Authorization", ShopperTokens.admin()).param("from", "15-06-2020"))
         .andExpect(status().isBadRequest());
   }
 

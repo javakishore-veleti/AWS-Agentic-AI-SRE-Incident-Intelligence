@@ -1,6 +1,7 @@
 export type ProductStatus = "ACTIVE" | "DISCONTINUED"
 export type OfferStatus = "DRAFT" | "ACTIVE" | "EXPIRED"
 export type CustomerStatus = "ACTIVE" | "SUSPENDED"
+export type AccountRole = "CUSTOMER" | "ADMIN"
 export type OrderStatus = "PLACED" | "CONFIRMED" | "FULFILLED" | "CANCELLED"
 
 export type Product = {
@@ -44,6 +45,7 @@ export type Customer = {
   email: string
   phone: string
   status: CustomerStatus
+  role: AccountRole
   createdAt: string
   updatedAt: string
 }

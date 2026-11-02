@@ -1,4 +1,6 @@
+import { useState, type FormEvent } from "react"
 import { NavLink, Navigate, Route, Routes } from "react-router-dom"
+import { readDesk, signInDesk, writeDesk, type DeskSession } from "./api"
 import { CustomersPage } from "./pages/CustomersPage"
 import { OffersPage } from "./pages/OffersPage"
 import { OrdersPage } from "./pages/OrdersPage"
@@ -21,7 +23,51 @@ const links = [
   { to: "/orders", label: "Orders", group: "Commerce", d: "M6 6h15l-1.5 9h-12zM6 6 5 3H2M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2M18 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2" },
 ]
 
+function SignIn({ onSuccess }: { onSuccess: (session: DeskSession) => void }) {
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const [pending, setPending] = useState(false)
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    setPending(true)
+    setError("")
+    try {
+      onSuccess(await signInDesk(email, password))
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Sign in failed.")
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <main className="canvas sign-in">
+      <form className="card sign-in-card" onSubmit={submit}>
+        <p className="crumb">Heddle desk</p>
+        <h1>Sign in</h1>
+        <p className="lede">Use an administrator account.</p>
+        <label className="field">
+          Email
+          <input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
+        </label>
+        <label className="field">
+          Password
+          <input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+        </label>
+        {error ? <p className="form-error">{error}</p> : null}
+        <div className="form-actions">
+          <button className="primary" type="submit" disabled={pending}>{pending ? "Signing in" : "Sign in"}</button>
+        </div>
+      </form>
+    </main>
+  )
+}
+
 export function App() {
+  const [desk, setDesk] = useState(readDesk())
+  if (!desk) return <SignIn onSuccess={setDesk} />
   let previous = ""
   return (
     <div className="desk">
@@ -48,7 +94,19 @@ export function App() {
             )
           })}
         </nav>
-        <div className="sidebar-foot">Commerce desk for the Heddle house.</div>
+        <div className="sidebar-foot">
+          <div>{desk.name}</div>
+          <button
+            className="text-btn"
+            type="button"
+            onClick={() => {
+              writeDesk(null)
+              setDesk(null)
+            }}
+          >
+            Sign out
+          </button>
+        </div>
       </aside>
       <main className="canvas">
         <Routes>

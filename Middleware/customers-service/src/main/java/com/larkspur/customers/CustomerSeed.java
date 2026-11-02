@@ -20,10 +20,22 @@ class CustomerSeed implements CommandLineRunner {
 
   @Override
   public void run(String... args) {
-    if (customers.count() > 0) {
+    boolean empty = customers.count() == 0;
+    String hash = passwords.encode(DEMO_PASSWORD);
+    if (customers.findByEmail("desk@heddle.example").isEmpty()) {
+      Customer admin = new Customer();
+      admin.id = UUID.fromString("30000000-0000-4000-8000-000000000099");
+      admin.fullName = "Heddle Desk";
+      admin.email = "desk@heddle.example";
+      admin.phone = "";
+      admin.status = CustomerStatus.ACTIVE;
+      admin.role = AccountRole.ADMIN;
+      admin.passwordHash = hash;
+      customers.save(admin);
+    }
+    if (!empty) {
       return;
     }
-    String hash = passwords.encode(DEMO_PASSWORD);
     Instant now = Instant.now();
     save(1, "Amira Shah", "amira.shah@heddle.example", "415-555-0148", CustomerStatus.ACTIVE, hash, now.minus(12, ChronoUnit.DAYS));
     save(2, "Jonah Ellis", "jonah.ellis@heddle.example", "415-555-0172", CustomerStatus.ACTIVE, hash, now.minus(11, ChronoUnit.DAYS));
@@ -40,6 +52,7 @@ class CustomerSeed implements CommandLineRunner {
     customer.email = email;
     customer.phone = phone;
     customer.status = status;
+    customer.role = AccountRole.CUSTOMER;
     customer.passwordHash = hash;
     customer.createdAt = createdAt;
     customer.updatedAt = createdAt;

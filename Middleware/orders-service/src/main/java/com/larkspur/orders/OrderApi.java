@@ -108,12 +108,14 @@ class OrderController {
 
   @GetMapping
   List<OrderResponse> latest(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
       @RequestParam(required = false) String customer,
       @RequestParam(required = false) String email,
       @RequestParam(required = false) String offer,
       @RequestParam(required = false) String status,
       @RequestParam(required = false) String from,
       @RequestParam(required = false) String to) {
+    orders.requireDesk(authorization);
     return orders.latest(customer, email, offer, status, from, to);
   }
 
@@ -135,12 +137,19 @@ class OrderController {
   }
 
   @PutMapping("/{id}")
-  OrderResponse update(@PathVariable UUID id, @Valid @RequestBody OrderUpdateRequest request) {
+  OrderResponse update(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
+      @PathVariable UUID id,
+      @Valid @RequestBody OrderUpdateRequest request) {
+    orders.requireDesk(authorization);
     return orders.update(id, request);
   }
 
   @DeleteMapping("/{id}")
-  ResponseEntity<Void> delete(@PathVariable UUID id) {
+  ResponseEntity<Void> delete(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
+      @PathVariable UUID id) {
+    orders.requireDesk(authorization);
     orders.delete(id);
     return ResponseEntity.noContent().build();
   }
@@ -162,6 +171,10 @@ class OrderService {
     this.offers = offers;
     this.inventory = inventory;
     this.tokens = tokens;
+  }
+
+  void requireDesk(String authorization) {
+    tokens.requireAdmin(authorization);
   }
 
   @Transactional(readOnly = true)
@@ -368,6 +381,24 @@ class ShopperTokens {
 
   ShopperTokens(@Value("${security.jwt.secret}") String secret) {
     this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+  }
+
+  void requireAdmin(String header) {
+    Object role = parseDesk(header).get("role");
+    if (!"ADMIN".equals(role)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "An administrator must approve this request.");
+    }
+  }
+
+  private Claims parseDesk(String header) {
+    if (header == null || !header.startsWith("Bearer ")) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sign in to continue.");
+    }
+    try {
+      return Jwts.parser().verifyWith(key).build().parseSignedClaims(header.substring(7)).getPayload();
+    } catch (JwtException ex) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sign in to continue.");
+    }
   }
 
   Claims parse(String header) {

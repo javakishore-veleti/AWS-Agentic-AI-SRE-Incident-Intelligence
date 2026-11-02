@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.larkspur.testing.CommerceServiceTest;
+import com.larkspur.testing.ShopperTokens;
 import com.larkspur.testing.Datasets;
 import com.larkspur.testing.DownstreamServers;
 import java.net.ConnectException;
@@ -43,7 +44,7 @@ class ProductApiTest {
     inventory.expect(requestTo("http://inventory.test/api/stock/" + sku))
         .andExpect(method(HttpMethod.PUT))
         .andRespond(withSuccess());
-    MvcResult created = mvc.perform(post("/api/products")
+    MvcResult created = mvc.perform(post("/api/products").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.product(sku, "Stoneware Carafe"))))
         .andExpect(status().isCreated())
@@ -52,7 +53,7 @@ class ProductApiTest {
     inventory.verify();
     String id = json.readTree(created.getResponse().getContentAsString()).get("id").asText();
 
-    mvc.perform(get("/api/products/" + id))
+    mvc.perform(get("/api/products/" + id).header("Authorization", ShopperTokens.admin()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.name").value("Stoneware Carafe"));
 
@@ -60,22 +61,22 @@ class ProductApiTest {
     inventory.expect(requestTo("http://inventory.test/api/stock/" + sku))
         .andExpect(method(HttpMethod.PUT))
         .andRespond(withSuccess());
-    mvc.perform(put("/api/products/" + id)
+    mvc.perform(put("/api/products/" + id).header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.product(sku, "Updated Carafe"))))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.name").value("Updated Carafe"));
 
-    mvc.perform(delete("/api/products/" + id))
+    mvc.perform(delete("/api/products/" + id).header("Authorization", ShopperTokens.admin()))
         .andExpect(status().isNoContent());
-    mvc.perform(get("/api/products/" + id))
+    mvc.perform(get("/api/products/" + id).header("Authorization", ShopperTokens.admin()))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.message").value("Product not found."));
   }
 
   @Test
   void unknownProductIs404() throws Exception {
-    mvc.perform(get("/api/products/" + UUID.randomUUID()))
+    mvc.perform(get("/api/products/" + UUID.randomUUID()).header("Authorization", ShopperTokens.admin()))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.message").value("Product not found."));
   }
@@ -85,13 +86,13 @@ class ProductApiTest {
     String sku = ("DUP-" + UUID.randomUUID()).toUpperCase();
     MockRestServiceServer inventory = DownstreamServers.server("inventoryRestClient");
     inventory.expect(requestTo("http://inventory.test/api/stock/" + sku)).andRespond(withSuccess());
-    mvc.perform(post("/api/products")
+    mvc.perform(post("/api/products").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.product(sku, "First"))))
         .andExpect(status().isCreated());
     inventory.reset();
     inventory.expect(requestTo("http://inventory.test/api/stock/" + sku)).andRespond(withSuccess());
-    mvc.perform(post("/api/products")
+    mvc.perform(post("/api/products").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.product(sku, "Second"))))
         .andExpect(status().isConflict())
@@ -100,7 +101,7 @@ class ProductApiTest {
 
   @Test
   void blankSkuIs400() throws Exception {
-    mvc.perform(post("/api/products")
+    mvc.perform(post("/api/products").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.product("  ", "Carafe"))))
         .andExpect(status().isBadRequest())
@@ -109,7 +110,7 @@ class ProductApiTest {
 
   @Test
   void oversizedSkuIs400() throws Exception {
-    mvc.perform(post("/api/products")
+    mvc.perform(post("/api/products").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.product("S".repeat(41), "Carafe"))))
         .andExpect(status().isBadRequest())
@@ -122,7 +123,7 @@ class ProductApiTest {
     DownstreamServers.server("inventoryRestClient")
         .expect(requestTo("http://inventory.test/api/stock/" + sku))
         .andRespond(withException(new ConnectException("down")));
-    mvc.perform(post("/api/products")
+    mvc.perform(post("/api/products").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.product(sku, "Carafe"))))
         .andExpect(status().isCreated())

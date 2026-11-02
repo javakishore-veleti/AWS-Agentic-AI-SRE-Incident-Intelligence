@@ -21,6 +21,10 @@ spring:
 clients:
   inventory-base-url: ${INVENTORY_BASE_URL:http://localhost:8085}
 
+security:
+  jwt:
+    secret: local-dev-sre-incident-intelligence-jwt-secret-key
+
 management:
   endpoints:
     web:

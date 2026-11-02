@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.larkspur.testing.CommerceServiceTest;
+import com.larkspur.testing.ShopperTokens;
 import com.larkspur.testing.Datasets;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -57,7 +58,7 @@ class CustomerAccessTest {
   @Test
   void suspendedAccountIs403() throws Exception {
     String email = "suspended-" + UUID.randomUUID() + "@example.test";
-    mvc.perform(post("/api/customers")
+    mvc.perform(post("/api/customers").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.customer("Grace Hopper", email, "password12", "SUSPENDED"))))
         .andExpect(status().isCreated());
@@ -80,7 +81,7 @@ class CustomerAccessTest {
 
   @Test
   void unknownCustomerIs404() throws Exception {
-    mvc.perform(get("/api/customers/" + UUID.randomUUID()))
+    mvc.perform(get("/api/customers/" + UUID.randomUUID()).header("Authorization", ShopperTokens.admin()))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.message").value("Customer not found."));
   }
@@ -107,7 +108,7 @@ class CustomerAccessTest {
 
   @Test
   void shortCustomerPasswordIs400() throws Exception {
-    mvc.perform(post("/api/customers")
+    mvc.perform(post("/api/customers").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.customer("Ada Lovelace", "desk-" + UUID.randomUUID() + "@example.test", "short", "ACTIVE"))))
         .andExpect(status().isBadRequest())
