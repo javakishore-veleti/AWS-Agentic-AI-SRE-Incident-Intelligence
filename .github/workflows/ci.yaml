@@ -34,10 +34,11 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: Middleware/investigation-agent/requirements.txt
-      - name: Install and load the graph
+      - name: Install, test, and load the graph
         working-directory: Middleware/investigation-agent
         run: |
           python -m pip install -r requirements.txt
+          python -m pytest -q
           python -c "from app.main import app"
 
   portals:
