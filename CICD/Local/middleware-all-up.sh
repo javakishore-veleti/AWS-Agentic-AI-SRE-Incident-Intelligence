@@ -34,6 +34,11 @@ if ! command -v mvn >/dev/null 2>&1; then
   echo "Maven was not found. Install Maven or put it on PATH." >&2
   exit 1
 fi
+if [[ -z "${DB_PASSWORD:-}" || -z "${JWT_SECRET:-}" ]]; then
+  echo "DB_PASSWORD and JWT_SECRET must be set in the environment. They are not stored in this repository." >&2
+  exit 1
+fi
+export DB_PASSWORD JWT_SECRET
 
 port_open() {
   (echo >/dev/tcp/127.0.0.1/"$1") >/dev/null 2>&1

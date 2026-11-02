@@ -6,7 +6,8 @@ const orders = import.meta.env.VITE_ORDERS_API ?? "http://localhost:8084"
 const sessionKey = "heddle.session"
 
 export function readSession(): Session | null {
-  const raw = localStorage.getItem(sessionKey)
+  localStorage.removeItem(sessionKey)
+  const raw = sessionStorage.getItem(sessionKey)
   if (!raw) return null
   try {
     return JSON.parse(raw) as Session
@@ -16,8 +17,9 @@ export function readSession(): Session | null {
 }
 
 export function writeSession(session: Session | null) {
-  if (session) localStorage.setItem(sessionKey, JSON.stringify(session))
-  else localStorage.removeItem(sessionKey)
+  localStorage.removeItem(sessionKey)
+  if (session) sessionStorage.setItem(sessionKey, JSON.stringify(session))
+  else sessionStorage.removeItem(sessionKey)
   window.dispatchEvent(new Event("heddle-session"))
 }
 
