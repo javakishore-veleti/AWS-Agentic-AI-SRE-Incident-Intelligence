@@ -1,0 +1,430 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Heddle IAM, security groups, and a generated database secret. The template
+  does not contain a password. Database ports accept traffic only from the
+  application security group.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, stage]
+  Project:
+    Type: String
+    Default: Heddle
+  Owner:
+    Type: String
+    Default: heddle
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  GithubOrg:
+    Type: String
+    Default: javakishore-veleti
+  GithubRepo:
+    Type: String
+    Default: AWS-Agentic-AI-SRE-Incident-Intelligence
+  CreateOidcProvider:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+  OidcProviderArn:
+    Type: String
+    Default: ""
+
+Conditions:
+  CreateProvider: !Equals [!Ref CreateOidcProvider, "true"]
+  HasProviderArn: !Not [!Equals [!Ref OidcProviderArn, ""]]
+  CreateDeployRole: !Or
+    - !Condition CreateProvider
+    - !Condition HasProviderArn
+
+Rules:
+  OneOidcSource:
+    Assertions:
+      - Assert:
+          !Not
+            - !And
+              - !Equals [!Ref CreateOidcProvider, "true"]
+              - !Not [!Equals [!Ref OidcProviderArn, ""]]
+        AssertDescription: Create the GitHub OIDC provider or pass its ARN, not both.
+
+Resources:
+  Key:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: !Sub heddle-${Environment} encryption key
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AccountAdmin
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action: kms:*
+            Resource: "*"
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-key
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  KeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/heddle-${Environment}
+      TargetKeyId: !Ref Key
+
+  DbSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Sub heddle/${Environment}/database
+      Description: Generated database password. The value is not an output.
+      KmsKeyId: !Ref Key
+      GenerateSecretString:
+        SecretStringTemplate: '{"username":"heddle"}'
+        GenerateStringKey: password
+        PasswordLength: 32
+        ExcludePunctuation: true
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-database
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  AlbSg:
+    Type: AWS::EC2::SecurityGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      GroupDescription: Public web entry for the Heddle load balancer
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress: []
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-alb
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  AppSg:
+    Type: AWS::EC2::SecurityGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      GroupDescription: Application and node traffic
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-app
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  DataSg:
+    Type: AWS::EC2::SecurityGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      GroupDescription: Private database and cache. No public ingress.
+      VpcId: !Ref VpcId
+      SecurityGroupEgress: []
+      Tags:
+        - Key: Name
+          Value: !Sub heddle-${Environment}-data
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  AlbToApp:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref AlbSg
+      DestinationSecurityGroupId: !Ref AppSg
+      IpProtocol: tcp
+      FromPort: 8080
+      ToPort: 8085
+      Description: Load balancer to application ports
+
+  AppFromAlb:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref AppSg
+      SourceSecurityGroupId: !Ref AlbSg
+      IpProtocol: tcp
+      FromPort: 8080
+      ToPort: 8085
+      Description: Application ports from the load balancer
+
+  AppToData:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref AppSg
+      DestinationSecurityGroupId: !Ref DataSg
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      Description: Application to PostgreSQL
+
+  AppToCache:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref AppSg
+      DestinationSecurityGroupId: !Ref DataSg
+      IpProtocol: tcp
+      FromPort: 6379
+      ToPort: 6379
+      Description: Application to Redis
+
+  DataFromAppPostgres:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref DataSg
+      SourceSecurityGroupId: !Ref AppSg
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      Description: PostgreSQL from the application security group
+
+  DataFromAppRedis:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref DataSg
+      SourceSecurityGroupId: !Ref AppSg
+      IpProtocol: tcp
+      FromPort: 6379
+      ToPort: 6379
+      Description: Redis from the application security group
+
+  AppSelfIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref AppSg
+      SourceSecurityGroupId: !Ref AppSg
+      IpProtocol: -1
+      Description: Node and pod traffic inside the application group
+
+  EksClusterRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      RoleName: !Sub heddle-${Environment}-eks-cluster
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonEKSClusterPolicy
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonEKSVPCResourceController
+      Tags:
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  EksNodeRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      RoleName: !Sub heddle-${Environment}-eks-node
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonEKS_CNI_Policy
+      Tags:
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  GithubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateProvider
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+      Tags:
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Condition: CreateDeployRole
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      RoleName: !Sub heddle-${Environment}-gha-deploy
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If [CreateProvider, !Ref GithubOidcProvider, !Ref OidcProviderArn]
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub repo:${GithubOrg}/${GithubRepo}:*
+      Policies:
+        - PolicyName: heddle-deploy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CloudFormationStacks
+                Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:GetTemplate
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:DeleteChangeSet
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/heddle-${Environment}-*/*
+              - Sid: EcrAuth
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Sid: EcrPush
+                Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:CompleteLayerUpload
+                  - ecr:DescribeRepositories
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource: !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/heddle-${Environment}-*
+              - Sid: EksRead
+                Effect: Allow
+                Action:
+                  - eks:DescribeCluster
+                  - eks:DescribeNodegroup
+                  - eks:ListNodegroups
+                  - eks:AccessKubernetesApi
+                Resource: !Sub arn:${AWS::Partition}:eks:${AWS::Region}:${AWS::AccountId}:cluster/heddle-${Environment}
+              - Sid: IamForNamedRoles
+                Effect: Allow
+                Action:
+                  - iam:AttachRolePolicy
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:DeleteRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:GetRole
+                  - iam:PassRole
+                  - iam:PutRolePolicy
+                  - iam:TagRole
+                Resource:
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/heddle-${Environment}-*
+      Tags:
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+Outputs:
+  AlbSecurityGroupId:
+    Value: !Ref AlbSg
+  AppSecurityGroupId:
+    Value: !Ref AppSg
+  DataSecurityGroupId:
+    Value: !Ref DataSg
+  EksClusterRoleArn:
+    Value: !GetAtt EksClusterRole.Arn
+  EksNodeRoleArn:
+    Value: !GetAtt EksNodeRole.Arn
+  DbSecretArn:
+    Value: !Ref DbSecret
+  KmsKeyArn:
+    Value: !GetAtt Key.Arn
+  DeployRoleArn:
+    Value: !If [CreateDeployRole, !GetAtt DeployRole.Arn, ""]
