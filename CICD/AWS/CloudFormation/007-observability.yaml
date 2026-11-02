@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Selects CloudWatch or the existing local exporters. The default is
+  self-hosted. This stack does not install an agent and does not claim that
+  telemetry was ingested. Java service exporters are unchanged.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, stage]
+  Project:
+    Type: String
+    Default: Heddle
+  Owner:
+    Type: String
+    Default: heddle
+  TelemetryMode:
+    Type: String
+    Default: self-hosted
+    AllowedValues: [self-hosted, cloudwatch]
+
+Conditions:
+  UseCloudWatch: !Equals [!Ref TelemetryMode, cloudwatch]
+  UseSelfHosted: !Equals [!Ref TelemetryMode, self-hosted]
+
+Resources:
+  ApplicationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: UseCloudWatch
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /heddle/${Environment}/application
+      RetentionInDays: 14
+      Tags:
+        - Key: Project
+          Value: !Ref Project
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Owner
+          Value: !Ref Owner
+
+  TelemetryChoice:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /heddle/${Environment}/telemetry-mode
+      Type: String
+      Value: !If
+        - UseSelfHosted
+        - self-hosted. Java services keep prometheus and otlp. This stack does not install a collector and does not record ingested telemetry.
+        - cloudwatch. A log group exists. Metrics and traces are not claimed as ingested.
+      Tags:
+        Project: !Ref Project
+        Environment: !Ref Environment
+        ManagedBy: cloudformation
+        Owner: !Ref Owner
+
+Outputs:
+  TelemetryMode:
+    Value: !Ref TelemetryMode
+  LogGroupName:
+    Value: !If [UseCloudWatch, !Ref ApplicationLogGroup, ""]
