@@ -162,7 +162,7 @@ These are the most important issues I would address before calling the applicati
 
 ### High priority — Administration APIs require an administrator
 
-Desk list and write routes for products, offers, customers, and orders require a bearer token whose `role` claim is `ADMIN`. The desk signs in and sends that token. A missing token is 401. A customer token is 403. Shop purchase routes and service lookups stay open. `GET /api/orders/{id}` is still not limited to the owning customer.
+Desk list and write routes for products, offers, customers, and orders require a bearer token whose `role` claim is `ADMIN`. The desk signs in and sends that token. A missing token is 401. A customer token is 403. Shop purchase routes and service lookups stay open. `GET /api/orders/{id}` returns an order to its customer or to an administrator. Another customer's token gets the same 404 as a missing order.
 
 ### High priority — Order and inventory consistency
 
@@ -182,7 +182,7 @@ Before AWS deployment, secrets need external management, and authentication/sess
 
 `.github/workflows/ci.yaml` runs on pull requests to `develop` and `main`. It runs `mvn -B test` for the Java 21 services, loads the investigation agent, and builds both portals. The ruleset `Require CI checks` requires Middleware, Investigation agent, Portals (agentic-ai-admin), and Portals (ecommerce-portal). A failed or missing check blocks the merge. A fault-injection suite is still absent.
 
-One additional security issue: `GET /api/orders/{id}` is not scoped to the authenticated customer. Even though the storefront uses `/api/orders/mine`, direct object access still needs authorization.
+`GET /api/orders/{id}` is limited to the owning customer or an administrator. The storefront still uses `/api/orders/mine`.
 
 ## 8. How close are we to validating YouTube Short 1?
 
