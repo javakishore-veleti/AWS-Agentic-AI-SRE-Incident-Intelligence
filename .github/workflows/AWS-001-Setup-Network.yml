@@ -1,0 +1,132 @@
+name: AWS-001-Setup-Network
+
+"on":
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment.
+        type: choice
+        options: [dev, stage]
+        default: dev
+      dry_run:
+        description: Show what would change and stop before applying it.
+        type: boolean
+        default: true
+
+      vpc_mode:
+        description: existing reuses AWS_VPC_ID. new creates a project VPC.
+        type: choice
+        options: [existing, new]
+        default: existing
+      create_project_subnets:
+        description: Create project subnets when reusing a VPC.
+        type: choice
+        options: ["false", "true"]
+        default: "false"
+
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      dry_run:
+        type: boolean
+        default: true
+
+      vpc_mode:
+        type: string
+        default: existing
+      create_project_subnets:
+        type: string
+        default: "false"
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: aws-001-setup-network-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Confirm the caller
+        env:
+          EXPECTED_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          EXPECTED_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          account="$(aws sts get-caller-identity --query Account --output text)"
+          if [ "$account" != "$EXPECTED_ACCOUNT" ]; then
+            echo "The caller account does not match AWS_ACCOUNT_ID."
+            exit 1
+          fi
+          region="$(aws configure get region)"
+          if [ "$region" != "$EXPECTED_REGION" ]; then
+            echo "The caller region does not match AWS_REGION."
+            exit 1
+          fi
+
+      - name: Preview or deploy the stack
+        env:
+          ENV: ${{ inputs.environment }}
+          DRY: ${{ inputs.dry_run }}
+          STACK: heddle-${{ inputs.environment }}-001-network
+
+          VPC_MODE: ${{ inputs.vpc_mode }}
+          CREATE_SUBNETS: ${{ inputs.create_project_subnets }}
+          AWS_VPC_ID: ${{ vars.AWS_VPC_ID }}
+          AWS_PUBLIC_SUBNET_1: ${{ vars.AWS_PUBLIC_SUBNET_1 }}
+          AWS_PUBLIC_SUBNET_2: ${{ vars.AWS_PUBLIC_SUBNET_2 }}
+          AWS_APP_SUBNET_1: ${{ vars.AWS_APP_SUBNET_1 }}
+          AWS_APP_SUBNET_2: ${{ vars.AWS_APP_SUBNET_2 }}
+          AWS_DATA_SUBNET_1: ${{ vars.AWS_DATA_SUBNET_1 }}
+          AWS_DATA_SUBNET_2: ${{ vars.AWS_DATA_SUBNET_2 }}
+
+        run: |
+          set -euo pipefail
+          stack_output() {
+            aws cloudformation describe-stacks --stack-name "$1" \
+              --query "Stacks[0].Outputs[?OutputKey=='$2'].OutputValue" --output text
+          }
+
+          if [ "$VPC_MODE" = "existing" ] && [ -z "${AWS_VPC_ID}" ]; then
+            echo "Existing mode requires the AWS_VPC_ID variable."
+            exit 1
+          fi
+          params=(
+            Environment="$ENV"
+            VpcMode="$VPC_MODE"
+            CreateProjectSubnets="$CREATE_SUBNETS"
+            ExistingVpcId="${AWS_VPC_ID}"
+            ExistingPublicSubnet1="${AWS_PUBLIC_SUBNET_1}"
+            ExistingPublicSubnet2="${AWS_PUBLIC_SUBNET_2}"
+            ExistingAppSubnet1="${AWS_APP_SUBNET_1}"
+            ExistingAppSubnet2="${AWS_APP_SUBNET_2}"
+            ExistingDataSubnet1="${AWS_DATA_SUBNET_1}"
+            ExistingDataSubnet2="${AWS_DATA_SUBNET_2}"
+          )
+
+          args=(
+            --stack-name "$STACK"
+            --template-file CICD/AWS/CloudFormation/001-network.yaml
+            --parameter-overrides "${params[@]}"
+            --tags Project=Heddle Environment="$ENV" ManagedBy=cloudformation Owner=heddle
+            --capabilities CAPABILITY_NAMED_IAM
+            --no-fail-on-empty-changeset
+          )
+          if [ "$DRY" = "true" ]; then
+            aws cloudformation deploy "${args[@]}" --no-execute-changeset
+            echo "Dry run only. The change set was not executed."
+          else
+            aws cloudformation deploy "${args[@]}"
+          fi
