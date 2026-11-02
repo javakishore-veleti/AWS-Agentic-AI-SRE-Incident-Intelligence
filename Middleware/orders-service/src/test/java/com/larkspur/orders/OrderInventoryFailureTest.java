@@ -98,7 +98,7 @@ class OrderInventoryFailureTest {
   }
 
   private Set<String> orderNumbers() throws Exception {
-    JsonNode rows = json.readTree(mvc.perform(get("/api/orders")).andExpect(status().isOk())
+    JsonNode rows = json.readTree(mvc.perform(get("/api/orders").header("Authorization", ShopperTokens.admin())).andExpect(status().isOk())
         .andReturn().getResponse().getContentAsString());
     Set<String> numbers = new HashSet<>();
     rows.forEach(row -> numbers.add(row.get("orderNumber").asText()));

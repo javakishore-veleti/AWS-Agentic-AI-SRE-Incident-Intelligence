@@ -25,7 +25,7 @@ There is no payment step and no idempotency key. Submitting purchase again creat
 
 ## What the desk does today
 
-Routes in `Portals/agentic-ai-admin` (Vite on port 5173): `/overview`, `/products`, `/offers`, `/customers`, `/orders`.
+Routes in `Portals/agentic-ai-admin` (Vite on port 5173): `/overview`, `/products`, `/offers`, `/customers`, `/orders`. The desk first asks for an administrator sign-in. A customer token is rejected on the page. The session is kept in `sessionStorage` under `heddle.desk`, and later calls send `Authorization`.
 
 | Screen | Writes | How the list works |
 |---|---|---|
@@ -67,7 +67,7 @@ Shared craft for both portals: clear page hierarchy, readable tables, responsive
 
 - **Product.** `id`, unique `sku`, `name`, `description`, `category`, `unitPrice`, `status` (`ACTIVE` or `DISCONTINUED`), `createdAt`, `updatedAt`. The shop formats amounts as USD. There is no currency column.
 - **Offer.** `id`, unique `code`, `name`, `description`, `offerPrice`, `status` (`DRAFT`, `ACTIVE`, `EXPIRED`), `startsOn`, `endsOn`, `productIds` (required, one or many), `createdAt`, `updatedAt`. Detail responses also include the matching product summaries.
-- **Customer.** `id`, `fullName`, unique `email`, `phone`, `status`, timestamps. The service stores a password hash and does not return it.
+- **Customer.** `id`, `fullName`, unique `email`, `phone`, `status`, `role` (`CUSTOMER` or `ADMIN`), timestamps. The service stores a password hash and does not return it. Signup creates `CUSTOMER`. Desk create and update do not change `role`.
 - **Order.** `id`, `orderNumber`, customer snapshot, `offerId`, `offerName`, `totalAmount`, `status` (`PLACED`, `CONFIRMED`, `FULFILLED`, `CANCELLED`), `note`, line snapshots, `placedAt`, `updatedAt`. Each line has `productId`, `sku`, `productName`, `quantity`, and `unitPrice`. Purchase currently writes quantity `1` for every product in the offer and sets the total from `offerPrice`.
 - **Inventory.** Stock is keyed by SKU, with available and reserved quantities. Reservation is part of purchase, as described in ARCHITECTURE.md.
 

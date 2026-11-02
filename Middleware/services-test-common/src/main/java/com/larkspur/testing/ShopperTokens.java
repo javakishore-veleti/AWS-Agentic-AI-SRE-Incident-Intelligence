@@ -16,12 +16,21 @@ public final class ShopperTokens {
   }
 
   public static String bearer(UUID customerId, String name, String email) {
+    return token(customerId, name, email, "CUSTOMER");
+  }
+
+  public static String admin() {
+    return token(UUID.fromString("00000000-0000-4000-8000-000000000099"), "Heddle Desk", "desk@heddle.example", "ADMIN");
+  }
+
+  private static String token(UUID customerId, String name, String email, String role) {
     SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
     Instant now = Instant.now();
     String token = Jwts.builder()
         .subject(customerId.toString())
         .claim("email", email)
         .claim("name", name)
+        .claim("role", role)
         .issuedAt(Date.from(now))
         .expiration(Date.from(now.plus(Duration.ofHours(1))))
         .signWith(key)

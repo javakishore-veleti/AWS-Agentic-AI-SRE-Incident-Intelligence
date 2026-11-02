@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.larkspur.testing.CommerceServiceTest;
+import com.larkspur.testing.ShopperTokens;
 import com.larkspur.testing.Datasets;
 import com.larkspur.testing.DownstreamServers;
 import com.larkspur.testing.EmbeddedRedis;
@@ -51,7 +52,7 @@ class OfferCacheTest {
     catalog.expect(requestTo(org.hamcrest.Matchers.containsString("/api/products/lookup")))
         .andRespond(withSuccess(productJson(productId, "HED-ONE", "Carafe"), MediaType.APPLICATION_JSON));
 
-    MvcResult created = mvc.perform(post("/api/offers")
+    MvcResult created = mvc.perform(post("/api/offers").header("Authorization", ShopperTokens.admin())
             .contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(Datasets.offer(code, "Morning", "ACTIVE", null, null, List.of(productId)))))
         .andExpect(status().isCreated())

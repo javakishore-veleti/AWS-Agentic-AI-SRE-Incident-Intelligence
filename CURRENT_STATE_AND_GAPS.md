@@ -160,13 +160,9 @@ This is not a criticism of the initial implementation. It is a useful first orch
 
 These are the most important issues I would address before calling the application enterprise-ready.
 
-### High priority — Administration APIs are not protected
+### High priority — Administration APIs require an administrator
 
-The admin portal sends no authentication token for product, offer, customer, or order management. The current controllers also expose these operations without role-based authorization.
-
-That means someone able to reach those endpoints could potentially read customer information or modify business records.
-
-This is acceptable only inside a tightly isolated development environment, not on an exposed AWS deployment.
+Desk list and write routes for products, offers, customers, and orders require a bearer token whose `role` claim is `ADMIN`. The desk signs in and sends that token. A missing token is 401. A customer token is 403. Shop purchase routes and service lookups stay open. `GET /api/orders/{id}` is still not limited to the owning customer.
 
 ### High priority — Order and inventory consistency
 

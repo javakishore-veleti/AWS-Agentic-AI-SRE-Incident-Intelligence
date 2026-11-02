@@ -29,6 +29,10 @@ spring:
 clients:
   catalog-base-url: ${CATALOG_BASE_URL:http://localhost:8081}
 
+security:
+  jwt:
+    secret: local-dev-sre-incident-intelligence-jwt-secret-key
+
 management:
   endpoints:
     web:

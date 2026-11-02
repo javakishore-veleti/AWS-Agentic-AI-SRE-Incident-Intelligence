@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.larkspur.testing.CommerceServiceTest;
+import com.larkspur.testing.ShopperTokens;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -23,11 +24,11 @@ class CustomerSearchTest {
       customers.save(customer("Newer " + index, "newer-" + index + "-" + UUID.randomUUID() + "@example.test", Instant.now()));
     }
 
-    mvc.perform(get("/api/customers"))
+    mvc.perform(get("/api/customers").header("Authorization", ShopperTokens.admin()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[?(@.fullName == 'Older Match')]").isEmpty());
 
-    mvc.perform(get("/api/customers").param("email", "older-match@"))
+    mvc.perform(get("/api/customers").header("Authorization", ShopperTokens.admin()).param("email", "older-match@"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].fullName").value("Older Match"))
         .andExpect(jsonPath("$.length()").value(1));

@@ -16,6 +16,11 @@ enum CustomerStatus {
   SUSPENDED
 }
 
+enum AccountRole {
+  CUSTOMER,
+  ADMIN
+}
+
 @Entity
 @Table(name = "customers")
 class Customer {
@@ -38,6 +43,10 @@ class Customer {
   @Column(nullable = false, length = 20)
   CustomerStatus status;
 
+  @Enumerated(EnumType.STRING)
+  @Column(length = 20)
+  AccountRole role;
+
   @Column(nullable = false)
   Instant createdAt;
 
@@ -55,6 +64,9 @@ class Customer {
     }
     if (updatedAt == null) {
       updatedAt = now;
+    }
+    if (role == null) {
+      role = AccountRole.CUSTOMER;
     }
   }
 

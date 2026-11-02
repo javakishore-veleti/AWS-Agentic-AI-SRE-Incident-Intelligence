@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -46,17 +47,21 @@ record ProductResponse(
 @RequestMapping("/api/products")
 class ProductController {
   private final ProductService products;
+  private final AdminGate desk;
 
-  ProductController(ProductService products) {
+  ProductController(ProductService products, AdminGate desk) {
     this.products = products;
+    this.desk = desk;
   }
 
   @GetMapping
   List<ProductResponse> latest(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
       @RequestParam(required = false) String name,
       @RequestParam(required = false) String sku,
       @RequestParam(required = false) String category,
       @RequestParam(required = false) String status) {
+    desk.require(authorization);
     return products.latest(name, sku, category, status);
   }
 
@@ -74,22 +79,35 @@ class ProductController {
   }
 
   @GetMapping("/{id}")
-  ProductResponse one(@PathVariable UUID id) {
+  ProductResponse one(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
+      @PathVariable UUID id) {
+    desk.require(authorization);
     return products.get(id);
   }
 
   @PostMapping
-  ResponseEntity<ProductResponse> create(@Valid @RequestBody ProductRequest request) {
+  ResponseEntity<ProductResponse> create(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
+      @Valid @RequestBody ProductRequest request) {
+    desk.require(authorization);
     return ResponseEntity.status(HttpStatus.CREATED).body(products.create(request));
   }
 
   @PutMapping("/{id}")
-  ProductResponse update(@PathVariable UUID id, @Valid @RequestBody ProductRequest request) {
+  ProductResponse update(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
+      @PathVariable UUID id,
+      @Valid @RequestBody ProductRequest request) {
+    desk.require(authorization);
     return products.update(id, request);
   }
 
   @DeleteMapping("/{id}")
-  ResponseEntity<Void> delete(@PathVariable UUID id) {
+  ResponseEntity<Void> delete(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
+      @PathVariable UUID id) {
+    desk.require(authorization);
     products.delete(id);
     return ResponseEntity.noContent().build();
   }

@@ -71,7 +71,9 @@ Offer writes require a non-empty `productIds` list. The service checks those ids
 
 `PUT /api/orders/{id}` accepts `status` and `note`. `POST /api/reservations` accepts `orderRef` and `lines` of `{ sku, qty }`. Inventory sleeps for `FAULT_DELAY_MS` milliseconds before reserving when that value is greater than zero. The default is `0`.
 
-Passwords are bcrypt hashed. `GET /api/auth/me` requires the bearer token.
+Passwords are bcrypt hashed. `GET /api/auth/me` requires the bearer token. The token includes `role`. Signup sets `CUSTOMER`. The customers seed adds `desk@heddle.example` with `ADMIN` when that email is absent. The password is the local demo password already defined on `CustomerSeed`.
+
+Desk management requires a bearer token whose `role` claim is `ADMIN`. No token is 401 with `Sign in to continue.` A token with another role is 403 with `An administrator must approve this request.` The desk routes are catalog list, get by id, create, update, and delete; offer list, create, update, and delete; customer list, get by id, create, update, and delete; order list, update, and delete. `GET /api/products/lookup`, `GET /api/offers/active`, `GET /api/offers/{id}`, signup, signin, `GET /api/auth/me`, `POST /api/orders`, and `GET /api/orders/mine` stay open to the callers they already have. `GET /api/orders/{id}` is still not limited to the owning customer.
 
 The investigation agent exposes `GET /health`, `GET /api/services`, and `POST /api/investigations` with `{ "service" }`. The graph probes `GET /actuator/health` on the five services and returns `service`, `signals`, `facts`, `hypotheses`, and `recommendations`. The module does not pin a listen port. It does not mutate services.
 
@@ -83,7 +85,7 @@ Still to build. Do not document these as present:
 - Shop offer search and shop order dates applied on the server before the latest-100 limit. The desk lists already do this. Shop order dates, where the screen has them, still compare the browser's local calendar day.
 - Order cancellation that retains the row and records an audit trail. Keep using `PUT` for updates unless a task changes the verb.
 - An idempotency key on purchase, and a payment step labeled as a simulation until a real provider is approved.
-- Authorization on desk writes and on `GET /api/orders`, so a shopper token cannot read another customer's orders.
+- Authorization so a shopper token cannot read another customer's order on `GET /api/orders/{id}`.
 - Versioned migrations in place of `ddl-auto: update`.
 - Investigation queries against the trace store. Services can export OTLP when `observability.traces.exporter=otlp`. Prometheus remains the metrics store.
 - Read-only investigation tools `query_logs`, `query_metrics`, `query_traces`, `get_kubernetes_events`, and `get_deployment_history`, returning the report contract in CLAUDE.md.
