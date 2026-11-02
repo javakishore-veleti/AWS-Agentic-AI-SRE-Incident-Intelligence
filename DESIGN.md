@@ -16,7 +16,7 @@ The customer-facing name is Heddle. Sample rows use `heddle.example` mail, SKU p
 
 Routes in `Portals/ecommerce-portal` (Vite on port 5174): `/offers`, `/offers/:id`, `/orders`, `/signin`, `/signup`.
 
-- Sign up and sign in call the customers service. The shop stores the returned token in `localStorage` under `heddle.session`.
+- Sign up and sign in call the customers service. The shop stores the returned token in `sessionStorage` under `heddle.session`. A token left in `localStorage` under that key is removed and is not reused.
 - The offer list loads `GET /api/offers/active`, then filters by offer name, product name, and maximum price in the browser.
 - Offer detail shows the offer and its products. Purchase sends `POST /api/orders` with `Authorization: Bearer <token>` and `{ "offerId" }`. The client does not send a price, a customer id, or a quantity.
 - Order history loads `GET /api/orders/mine` with the same bearer token. Date filters compare `placedAt` to the browser's local calendar day. Both the from day and the to day are inclusive. Pagination is client-side.

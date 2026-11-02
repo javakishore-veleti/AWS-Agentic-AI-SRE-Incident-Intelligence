@@ -3,6 +3,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+if [[ -z "${DB_PASSWORD:-}" ]]; then
+  echo "DB_PASSWORD must be set in the environment. It is not stored in this repository." >&2
+  exit 1
+fi
+
 if ! docker network inspect sre-incident-net >/dev/null 2>&1; then
   docker network create sre-incident-net
 fi

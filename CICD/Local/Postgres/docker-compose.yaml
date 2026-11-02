@@ -6,7 +6,7 @@ services:
     container_name: sre-postgres
     environment:
       POSTGRES_USER: sre
-      POSTGRES_PASSWORD: sre_local_password
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       POSTGRES_DB: product_catalog
     ports:
       - "5432:5432"

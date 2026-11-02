@@ -174,9 +174,7 @@ This requires idempotency, durable transaction state, and a recovery or compensa
 
 ### High priority — Secrets and customer session handling
 
-Local database passwords and JWT secrets are committed in application configuration. The shopper session is stored in browser `localStorage`.
-
-Before AWS deployment, secrets need external management, and authentication/session controls need hardening. The current configuration must remain local-only.
+The database password and JWT signing secret are loaded from `DB_PASSWORD` and `JWT_SECRET`. The shop stores its token in `sessionStorage` and drops a leftover `localStorage` value. Amazon Secrets Manager is not wired. An existing local Postgres volume keeps the password it was created with until that volume is recreated.
 
 ### High priority — Testing and CI/CD
 
