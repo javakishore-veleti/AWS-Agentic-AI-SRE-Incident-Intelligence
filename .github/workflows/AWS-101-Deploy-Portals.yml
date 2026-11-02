@@ -1,0 +1,69 @@
+name: AWS-101-Deploy-Portals
+
+"on":
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [dev, stage]
+        default: dev
+      dry_run:
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      dry_run:
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: aws-101-deploy-portals-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Build and apply the portals, or stop when dry_run is true
+        env:
+          ENV: ${{ inputs.environment }}
+          DRY: ${{ inputs.dry_run }}
+          EXPECTED_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          EXPECTED_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          account="$(aws sts get-caller-identity --query Account --output text)"
+          if [ "$account" != "$EXPECTED_ACCOUNT" ]; then
+            echo "The caller account does not match AWS_ACCOUNT_ID."
+            exit 1
+          fi
+          if [ "$DRY" = "true" ]; then
+            echo "Dry run only. Portal images were not built."
+            exit 0
+          fi
+          aws eks update-kubeconfig --name "heddle-${ENV}" --region "$EXPECTED_REGION"
+          aws ecr get-login-password --region "$EXPECTED_REGION" | docker login --username AWS --password-stdin "${account}.dkr.ecr.${EXPECTED_REGION}.amazonaws.com"
+          rendered="$(mktemp)"
+          cp CICD/AWS/kubernetes/portals-and-agent.yaml "$rendered"
+          for spec in "desk:agentic-ai-admin:DeskRepositoryUri" "shop:ecommerce-portal:ShopRepositoryUri"; do
+            IFS=: read -r name portal output <<<"$spec"
+            uri="$(aws cloudformation describe-stacks --stack-name "heddle-${ENV}-003-ecr" --query "Stacks[0].Outputs[?OutputKey=='${output}'].OutputValue" --output text)"
+            docker build -f CICD/AWS/docker/portal.Dockerfile --build-arg "PORTAL=${portal}" -t "${uri}:latest" .
+            docker push "${uri}:latest"
+            sed -i "s#heddle-${name}:local#${uri}:latest#" "$rendered"
+          done
+          kubectl apply -f "$rendered"
+          rm -f "$rendered"
