@@ -9,6 +9,7 @@ from typing import Annotated, Optional, TypedDict
 
 from langgraph.graph import END, StateGraph
 
+from app.guardrails import allow_tool, note_call, rejected_text, safe_recommendation, scrub
 from app.tools import SOURCES, query_evidence
 
 SERVICES = {
@@ -126,7 +127,12 @@ def build_graph(probe=None, evidence_query=None, model=None):
         return {"service": subject, "start": start, "end": end, "facts": facts}
 
     def collect(state: InvestigationState) -> dict:
-        signals = {name: read_health(url) for name, url in SERVICES.items()}
+        calls = 0
+        signals = {}
+        for name, url in SERVICES.items():
+            calls = note_call(calls)
+            allow_tool("health")
+            signals[name] = read_health(url)
         facts = [
             f"{name} health endpoint reported {signal['status']}."
             for name, signal in signals.items()
@@ -137,7 +143,10 @@ def build_graph(probe=None, evidence_query=None, model=None):
         evidence = []
         uncertainty = []
         for source in SOURCES:
-            row = read_evidence(source, subject, state["start"], state["end"], limit=5)
+            calls = note_call(calls)
+            allow_tool(source)
+            row = dict(read_evidence(source, subject, state["start"], state["end"], limit=5))
+            row["items"] = [scrub(item) for item in row.get("items") or []]
             evidence.append(row)
             if row.get("error"):
                 uncertainty.append(f"{source} for {subject}: {row['error']}")
@@ -181,6 +190,10 @@ def build_graph(probe=None, evidence_query=None, model=None):
         checked = []
         uncertainty = []
         for hypothesis in state["hypotheses"]:
+            if rejected_text(hypothesis):
+                checked.append("unsupported. The hypothesis repeated untrusted text or asked for a change.")
+                uncertainty.append("A hypothesis was rejected because it repeated untrusted text or asked for a change.")
+                continue
             if hypothesis.startswith("inconclusive"):
                 checked.append(hypothesis)
                 uncertainty.append("The report is inconclusive because retrieved telemetry did not support a cause.")
@@ -203,7 +216,7 @@ def build_graph(probe=None, evidence_query=None, model=None):
                 "Review the cited evidence before changing configuration. "
                 f"Cited: {', '.join(cited)}. A person approves any rollback or configuration change. This report does not apply one."
             )
-        return {"recommendations": [text]}
+        return {"recommendations": [safe_recommendation(text, cited if not blocked else [])]}
 
     graph = StateGraph(InvestigationState)
     graph.add_node("triage", triage)

@@ -148,6 +148,7 @@ Collect reads `/actuator/health` and the four read-only telemetry sources. A mis
 | Basic health endpoint investigation | Implemented in code |
 | Logs, metrics, and traces investigation | Read-only queries, with an error when a store is not configured |
 | LLM-powered root-cause assessment | Optional. A cause is not assigned unless retrieved rows are cited |
+| Approval before a change | Recorded only. `executed` stays false |
 | Real AWS incident investigation | Not implemented |
 
 The graph currently applies deterministic rules to service health signals. It does not call an LLM, query Prometheus or Jaeger, examine logs, correlate deployment changes, or validate root causes.
