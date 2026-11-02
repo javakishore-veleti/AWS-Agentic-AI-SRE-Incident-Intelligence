@@ -217,7 +217,7 @@ Generate traffic and confirm API latency metrics in Prometheus, application erro
 
 ### 03 — Implement Incident INC-001: Connection Pool Exhaustion
 
-Add repeatable k6 load, introduce a controlled HikariCP misconfiguration, and observe connection acquisition waits and API degradation.
+`PoolExhaustionTest` holds the one catalog connection, records `hikaricp_connections_timeout` and a span longer than 300ms, then reads products successfully after release. `CICD/Local/k6/inc-001-pool.js` is the load profile. That script was not run.
 
 *Exit criterion: Reproducible failure, captured evidence, and verified recovery.*
 
