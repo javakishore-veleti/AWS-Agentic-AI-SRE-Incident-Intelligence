@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from app.contracts import ReportContract
 from app.graph import SERVICES, build_graph
 from app.guardrails import record_approval
 
@@ -51,7 +52,7 @@ def approvals(request: ApprovalRequest) -> dict:
 @app.post("/api/investigations")
 def investigate(request: InvestigationRequest) -> dict:
     result = graph.invoke(_blank(request.service, request.start, request.end))
-    return {
+    payload = {
         "service": result["service"],
         "signals": result["signals"],
         "facts": result["facts"],
@@ -62,6 +63,8 @@ def investigate(request: InvestigationRequest) -> dict:
         "modelCalled": result["model_called"],
         "modelId": result["model_id"],
     }
+    ReportContract.model_validate(payload).checked()
+    return payload
 
 
 def _blank(service: str, start: str | None, end: str | None) -> dict:

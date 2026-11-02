@@ -9,7 +9,8 @@ from typing import Annotated, Optional, TypedDict
 
 from langgraph.graph import END, StateGraph
 
-from app.guardrails import allow_tool, note_call, rejected_text, safe_recommendation, scrub
+from app.contracts import MAX_RETRIES
+from app.guardrails import MAX_TOOL_CALLS, allow_tool, note_call, rejected_text, safe_recommendation, scrub
 from app.tools import SOURCES, query_evidence
 
 SERVICES = {
@@ -143,10 +144,26 @@ def build_graph(probe=None, evidence_query=None, model=None):
         evidence = []
         uncertainty = []
         for source in SOURCES:
-            calls = note_call(calls)
-            allow_tool(source)
-            row = dict(read_evidence(source, subject, state["start"], state["end"], limit=5))
-            row["items"] = [scrub(item) for item in row.get("items") or []]
+            row = None
+            for _attempt in range(MAX_RETRIES + 1):
+                if calls >= MAX_TOOL_CALLS:
+                    break
+                calls = note_call(calls)
+                allow_tool(source)
+                row = dict(read_evidence(source, subject, state["start"], state["end"], limit=5))
+                row["items"] = [scrub(item) for item in row.get("items") or []]
+                if not row.get("error"):
+                    break
+            if row is None:
+                row = {
+                    "evidenceId": f"ev-{source}-00000000",
+                    "source": source,
+                    "service": subject,
+                    "query": "",
+                    "retrievedAt": state["end"],
+                    "items": [],
+                    "error": f"tool call budget is {MAX_TOOL_CALLS}",
+                }
             evidence.append(row)
             if row.get("error"):
                 uncertainty.append(f"{source} for {subject}: {row['error']}")
