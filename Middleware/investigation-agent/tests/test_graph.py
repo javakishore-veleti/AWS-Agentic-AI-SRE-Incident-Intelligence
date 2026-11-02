@@ -73,7 +73,7 @@ def _run(query, service="orders-service", model=None):
 def test_report_cites_retrieved_evidence_and_says_no_model_was_called():
     result = _run(_mixed)
     assert result["report_hypotheses"] == [
-        "Retrieved rows are cited as ev-prometheus-abc12345. A root cause is not assigned from these rows alone."
+        "symptom. Retrieved rows are cited as ev-prometheus-abc12345. A cause is not assigned from these rows alone."
     ]
     assert result["model_called"] is False
     assert result["model_id"] is None

@@ -10,6 +10,7 @@ from typing import Annotated, Optional, TypedDict
 from langgraph.graph import END, StateGraph
 
 from app.contracts import MAX_RETRIES
+from app.correlation import competing_hypotheses
 from app.guardrails import MAX_TOOL_CALLS, allow_tool, note_call, rejected_text, safe_recommendation, scrub
 from app.tools import SOURCES, query_evidence
 
@@ -195,8 +196,9 @@ def build_graph(probe=None, evidence_query=None, model=None):
         uncertainty = [] if called else ["No model was called."]
         if note:
             uncertainty.append(note)
+        texts = [text] if called else competing_hypotheses(state["evidence"])
         return {
-            "hypotheses": [text],
+            "hypotheses": texts,
             "uncertainty": uncertainty,
             "model_called": called,
             "model_id": model_id,
